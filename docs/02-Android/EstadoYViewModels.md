@@ -49,7 +49,7 @@ Es el patrón correcto y sin slotted ningún problema:
 private val _name = MutableStateFlow("")
 private val _description = MutableStateFlow("")
 private val _icon = MutableStateFlow("book")
-private val _color = MutableStateFlow(0xFF6650A4.toInt())   // Purple40
+private val _color = MutableStateFlow(0xFFFF6E61.toInt())   // DEFAULT_HABIT_COLOR
 private val _frequency = MutableStateFlow(Frequency.DAILY)
 private val _isEditing = MutableStateFlow(false)
 private val _habitId = MutableStateFlow<Long?>(null)

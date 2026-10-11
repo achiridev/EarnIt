@@ -6,55 +6,48 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Paletas y matemática de color de los hábitos.
+ * Paleta y matemática de color de los hábitos.
  *
  * Todo es Kotlin puro (sin Compose) para que sea verificable con pruebas locales.
  * El color de un hábito es un `Int` ARGB empaquetado, tal y como lo guarda
  * `HabitEntity.color`; aquí solo se manipulan sus canales.
  */
 
-/** Color por defecto de un hábito nuevo. Coincide con `Purple40` del tema. */
-val DEFAULT_HABIT_COLOR: Int = 0xFF6650A4.toInt()
+/**
+ * Color por defecto de un hábito nuevo.
+ *
+ * Es la primera muestra de [PaletteColors], de modo que el formulario siempre
+ * arranca con un color que el usuario ve marcado entre las 13 muestras.
+ */
+val DEFAULT_HABIT_COLOR: Int = 0xFFFF6E61.toInt()
 
-/** Paleta suave: colores claros y desaturados. */
-val PastelColors: List<Int> = listOf(
-    0xFFF8BBD0.toInt(), // Rosa
-    0xFFF48FB1.toInt(), // Rosa intenso
-    0xFFFFD3B6.toInt(), // Melocotón
-    0xFFFFAB91.toInt(), // Salmón
-    0xFFFFE0B2.toInt(), // Naranja suave
-    0xFFFFF9C4.toInt(), // Amarillo
-    0xFFFFF59D.toInt(), // Amarillo intenso
-    0xFFE6EE9C.toInt(), // Lima
-    0xFFC5E1A5.toInt(), // Verde lima
-    0xFFB9F6CA.toInt(), // Menta
-    0xFFC8E6C9.toInt(), // Salvia
-    0xFFA5D6A7.toInt(), // Verde suave
-    0xFFB2DFDB.toInt(), // Agua
-    0xFF80CBC4.toInt(), // Turquesa
-    0xFFB2EBF2.toInt(), // Turquesa claro
-    0xFFB3E5FC.toInt(), // Cielo
-    0xFFBBDEFB.toInt(), // Azul
-    0xFFC5CAE9.toInt(), // Lavanda
-    0xFFD1C4E9.toInt(), // Periwinkle
-    0xFFE1BEE7.toInt(), // Lila
-    0xFFF3E5F5.toInt(), // Magenta muy claro
-)
-
-/** Paleta original: los colores vivos que el selector ofrecía antes de los pasteles. */
-val VividColors: List<Int> = listOf(
-    0xFF6650A4.toInt(), // Purple
-    0xFF006E54.toInt(), // Teal
-    0xFF8B5000.toInt(), // Brown
-    0xFF7D5260.toInt(), // Pink
-    0xFF4A626A.toInt(), // Blue Grey
-    0xFF3B4D10.toInt(), // Green
-    0xFF8B0000.toInt(), // Red
-    0xFF6B5800.toInt(), // Yellow
-    0xFF006B7C.toInt(), // Cyan
-    0xFF5C2E7C.toInt(), // Deep Purple
-    0xFF1A7538.toInt(), // Green
-    0xFF7C4D00.toInt(), // Orange
+/**
+ * Paleta del selector: 13 colores claros repartidos por toda la rueda de matiz,
+ * uno cada ~25 grados para que no falte ningún sector.
+ *
+ * Son tonos suaves pero **no pastel**: mantienen el valor alto (claros, como los
+ * pasteles de antes) con la saturación al doble (≈0.60 frente a ≈0.26), así que
+ * se distinguen bien en la lista sin volverse oscuros.
+ *
+ * Todos tienen una luminancia por encima de [MIN_LUMINANCE_TO_DARKEN] —el más
+ * bajo, el índigo, da 0.49— para que [Int.accentColor] los oscurezca siempre
+ * antes de usarlos como texto o tint. Esa condición la vigila la prueba
+ * `accentColor_darkensThePaletteUntilTheyAreLegible`.
+ */
+val PaletteColors: List<Int> = listOf(
+    0xFFFF6E61.toInt(), // Coral
+    0xFFFF9D4D.toInt(), // Naranja
+    0xFFFFE252.toInt(), // Amarillo
+    0xFFBBFA64.toInt(), // Lima
+    0xFF6DF299.toInt(), // Verde
+    0xFF66F2C8.toInt(), // Menta
+    0xFF66F2F2.toInt(), // Turquesa
+    0xFF5ECCF7.toInt(), // Cielo
+    0xFF61A5FF.toInt(), // Azul
+    0xFF7373FF.toInt(), // Índigo
+    0xFFB473FF.toInt(), // Violeta
+    0xFFFF6BFF.toInt(), // Magenta
+    0xFFFF66A6.toInt(), // Rosa
 )
 
 /**
@@ -73,10 +66,17 @@ fun isLightColor(color: Int): Boolean = relativeLuminance(color) > 0.5f
 
 /**
  * Luminancia a partir de la cual un color se considera demasiado claro para
- * usarse como tint de icono o de texto. Los colores vivos originales quedan
- * todos por debajo (el más alto, `Purple40`, da 0.36) y los pasteles por encima
- * (el más bajo, 0.65), así que el corte separa ambas paletas sin tocar los
- * colores que la app ya usaba.
+ * usarse como tint de icono o de texto.
+ *
+ * Por debajo quedan los colores que la app ya usaba antes de la paleta actual
+ * —los 12 "vivos", cuyo más alto daba 0.36— y los colores oscuros que el usuario
+ * elija a mano: ninguno se toca, así que **ningún hábito guardado cambia de
+ * aspecto**. Por encima están los 13 colores de [PaletteColors], cuyo más bajo
+ * da 0.49.
+ *
+ * Regla para añadir un color a la paleta: su luminancia debe superar este
+ * umbral. Si no, [Int.accentColor] lo devolvería intacto y se usaría sin
+ * oscurecer como texto sobre el tema claro.
  */
 private const val MIN_LUMINANCE_TO_DARKEN = 0.45f
 
@@ -90,11 +90,11 @@ private const val MAX_ACCENT_LUMINANCE = 0.28f
 /**
  * Versión del color del hábito apta para iconos y texto.
  *
- * Los pasteles tienen una luminancia demasiado alta para leerse sobre el tema
- * claro. En lugar de recortarlos (lo que los volvería grises) se baja su
- * intensidad manteniendo el matiz y la saturación, hasta entrar en el umbral de
- * [MAX_ACCENT_LUMINANCE]. Los colores vivos ya son legibles y se devuelven sin
- * tocar, de modo que ningún hábito existente cambia de aspecto.
+ * Los colores de [PaletteColors] tienen una luminancia demasiado alta para
+ * leerse sobre el tema claro. En lugar de recortarlos (lo que los volvería
+ * grises) se baja su intensidad manteniendo el matiz y la saturación, hasta
+ * entrar en el umbral de [MAX_ACCENT_LUMINANCE]. Los colores ya oscuros se
+ * devuelven sin tocar.
  *
  * Para fondos (`copy(alpha = …)`) hay que seguir usando el color original.
  */

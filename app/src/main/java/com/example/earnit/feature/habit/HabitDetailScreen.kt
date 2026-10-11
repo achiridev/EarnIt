@@ -142,7 +142,7 @@ fun HabitHeaderCard(
 ) {
     val themeColor = Color(habit.color)
     // El fondo usa el color puro; icono y texto, la variante de acento, para que
-    // los colores pasteles sigan siendo legibles sobre superficies claras.
+    // los colores claros de la paleta sigan siendo legibles sobre superficies claras.
     val accentColor = Color(habit.color.accentColor())
 
     androidx.compose.material3.Card(

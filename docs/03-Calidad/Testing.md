@@ -155,22 +155,24 @@ Este listado es el más útil del documento. **No hay ninguna prueba** de:
 
 ### Sí está probado: `HabitColors`
 
-`app/src/test/java/com/example/earnit/core/ui/components/HabitColorsTest.kt` — **8 pruebas locales**. Es el único bloque de lógica de UI con cobertura real, y existe porque `HabitColors.kt` se escribió deliberadamente **sin Compose** para que `toHsv`, `hsvToColorInt`, `accentColor`, `isLightColor` y `toHexString` fueran verificables en `./gradlew test`, sin dispositivo.
+`app/src/test/java/com/example/earnit/core/ui/components/HabitColorsTest.kt` — **9 pruebas locales**. Es el único bloque de lógica de UI con cobertura real, y existe porque `HabitColors.kt` se escribió deliberadamente **sin Compose** para que `toHsv`, `hsvToColorInt`, `accentColor`, `isLightColor` y `toHexString` fueran verificables en `./gradlew test`, sin dispositivo.
 
 Lo que fija:
 
 | Prueba | Qué garantiza |
 |---|---|
-| `hsv_roundTripReproducesTheOriginalColor` | `toHsv` y `hsvToColorInt` son inversos exactos sobre **todas** las muestras de las dos paletas. Si alguien toca la conversión, el diálogo abriría sobre un color distinto |
+| `hsv_roundTripReproducesTheOriginalColor` | `toHsv` y `hsvToColorInt` son inversos exactos sobre **todas** las muestras de la paleta y de los colores heredados. Si alguien toca la conversión, el diálogo abriría sobre un color distinto |
+| `toHsv_reportsTheExpectedComponents` | El matiz, la saturación y el valor del azul puro salen 240 / 1 / 1 |
 | `hsvToColorInt_alwaysReturnsAnOpaqueColorInRange` | Un matiz o saturación fuera de rango se recorta, nunca lanza |
-| `accentColor_darkensPastelsUntilTheyAreLegible` | Los 21 pasteles se oscurecen de verdad |
-| `accentColor_keepsColorsThatAreAlreadyDarkEnough` | Los 12 colores vivos originales y `DEFAULT_HABIT_COLOR` **no cambian**: ningún hábito guardado altera su aspecto |
+| `accentColor_darkensThePaletteUntilTheyAreLegible` | Los 13 colores de la paleta se oscurecen de verdad: **protege el umbral de 0.45**, que un color nuevo por debajo dejaría sin oscurecer |
+| `accentColor_keepsColorsThatAreAlreadyDarkEnough` | Los 12 colores que la app ya usaba **no cambian**: ningún hábito guardado altera su aspecto |
 | `isLightColor_agreesWithTheLuminanceThreshold` | Umbral de 0.5, para que el `Check`_negro o blanco siga siendo legible |
 | `toHexString_formatsSixDigits` | Formato `#RRGGBB` |
-| `palettes_haveNoRepeatedColors` | Ninguna muestra está duplicada |
+| `palette_hasThirteenDistinctColors` | La paleta tiene 13 muestras y ninguna está duplicada |
+| `defaultColorIsPartOfThePalette` | `DEFAULT_HABIT_COLOR` es una de las 13 muestras: el formulario nunca arranca con un color que no se vea marcado |
 
 > [!warning] Un test rojo aquí es una regresión visual
-> Si `accentColor_keepsColorsThatAreAlreadyDarkEnough` falla, significa que un color vivo que la app ya usaba va a cambiar de aspecto para todos sus usuarios. Es el test que protege esa decisión de umbral.
+> Si `accentColor_keepsColorsThatAreAlreadyDarkEnough` falla, significa que un color que la app ya usaba va a cambiar de aspecto para todos sus usuarios. Es el test que protege esa decisión de umbral. Los colores heredados viven **dentro del archivo de test**, no en `HabitColors.kt`: el selector ya no los ofrece, pero pueden estar guardados en hábitos de usuarios anteriores.
 
 ### Dependencias de testing declaradas y su uso real
 

@@ -13,9 +13,31 @@ import org.junit.Test
  */
 class HabitColorsTest {
 
+    /**
+     * Los 12 colores "vivos" que el selector ofrecía antes de la paleta actual.
+     *
+     * Ya no se ofrecen, pero pueden estar guardados en hábitos de usuarios
+     * anteriores, así que `accentColor()` no debe alterarlos: si el umbral de
+     * luminancia se moviera, todos esos hábitos cambiarían de aspecto.
+     */
+    private val legacyColors = listOf(
+        0xFF6650A4.toInt(), // Purple
+        0xFF006E54.toInt(), // Teal
+        0xFF8B5000.toInt(), // Brown
+        0xFF7D5260.toInt(), // Pink
+        0xFF4A626A.toInt(), // Blue Grey
+        0xFF3B4D10.toInt(), // Green
+        0xFF8B0000.toInt(), // Red
+        0xFF6B5800.toInt(), // Yellow
+        0xFF006B7C.toInt(), // Cyan
+        0xFF5C2E7C.toInt(), // Deep Purple
+        0xFF1A7538.toInt(), // Green
+        0xFF7C4D00.toInt(), // Orange
+    )
+
     @Test
     fun hsv_roundTripReproducesTheOriginalColor() {
-        val samples = PastelColors + VividColors + listOf(0xFF000000.toInt(), 0xFFFFFFFF.toInt())
+        val samples = PaletteColors + legacyColors + listOf(0xFF000000.toInt(), 0xFFFFFFFF.toInt())
 
         samples.forEach { original ->
             val hsv = original.toHsv()
@@ -44,45 +66,58 @@ class HabitColorsTest {
     }
 
     @Test
-    fun accentColor_darkensPastelsUntilTheyAreLegible() {
-        PastelColors.forEach { pastel ->
-            val accent = pastel.accentColor()
-            assertNotEquals("El pastel ${pastel.toHexString()} debería oscurecerse", pastel, accent)
+    fun accentColor_darkensThePaletteUntilTheyAreLegible() {
+        PaletteColors.forEach { color ->
+            val accent = color.accentColor()
+            assertNotEquals(
+                "El color ${color.toHexString()} debería oscurecerse: si no supera el " +
+                    "umbral de 0.45 se usaría como texto sin oscurecer",
+                color,
+                accent
+            )
             assertTrue(
-                "El acento ${accent.toHexString()} debería ser más oscuro que ${pastel.toHexString()}",
+                "El acento ${accent.toHexString()} debería ser más oscuro que ${color.toHexString()}",
                 (accent shr 16 and 0xFF) + (accent shr 8 and 0xFF) + (accent and 0xFF) <
-                    (pastel shr 16 and 0xFF) + (pastel shr 8 and 0xFF) + (pastel and 0xFF)
+                    (color shr 16 and 0xFF) + (color shr 8 and 0xFF) + (color and 0xFF)
             )
         }
     }
 
     @Test
     fun accentColor_keepsColorsThatAreAlreadyDarkEnough() {
-        // Los colores vivos son legibles: ningún hábito existente debe cambiar de aspecto.
-        VividColors.forEach { vivid ->
-            assertEquals("El color ${vivid.toHexString()} no debería cambiar", vivid, vivid.accentColor())
+        // Los colores que la app ya usaba son legibles: ningún hábito existente debe cambiar de aspecto.
+        legacyColors.forEach { legacy ->
+            assertEquals("El color ${legacy.toHexString()} no debería cambiar", legacy, legacy.accentColor())
         }
-        assertEquals(DEFAULT_HABIT_COLOR, DEFAULT_HABIT_COLOR.accentColor())
     }
 
     @Test
     fun isLightColor_agreesWithTheLuminanceThreshold() {
         assertTrue(isLightColor(0xFFFFFFFF.toInt())) // blanco
-        assertTrue(isLightColor(0xFFF8BBD0.toInt())) // pastel rosa
+        assertTrue(isLightColor(0xFFF8BBD0.toInt())) // rosa claro
         assertTrue(!isLightColor(0xFF000000.toInt())) // negro
         assertTrue(!isLightColor(0xFF6650A4.toInt())) // Purple40
     }
 
     @Test
     fun toHexString_formatsSixDigits() {
-        assertEquals("#6650A4", DEFAULT_HABIT_COLOR.toHexString())
+        assertEquals("#FF6E61", DEFAULT_HABIT_COLOR.toHexString())
         assertEquals("#000000", 0xFF000000.toInt().toHexString())
         assertEquals("#FFFFFF", 0xFFFFFFFF.toInt().toHexString())
     }
 
     @Test
-    fun palettes_haveNoRepeatedColors() {
-        val repeated = (PastelColors + VividColors).groupingBy { it }.eachCount().filterValues { it > 1 }
+    fun palette_hasThirteenDistinctColors() {
+        assertEquals("La paleta debe tener 13 muestras", 13, PaletteColors.size)
+        val repeated = PaletteColors.groupingBy { it }.eachCount().filterValues { it > 1 }
         assertTrue("Colores repetidos: ${repeated.keys.map { it.toHexString() }}", repeated.isEmpty())
+    }
+
+    @Test
+    fun defaultColorIsPartOfThePalette() {
+        assertTrue(
+            "El color por defecto debe ser una de las 13 muestras del selector",
+            DEFAULT_HABIT_COLOR in PaletteColors
+        )
     }
 }

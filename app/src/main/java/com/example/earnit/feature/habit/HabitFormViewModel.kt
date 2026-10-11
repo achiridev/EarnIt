@@ -23,7 +23,7 @@ class HabitFormViewModel @javax.inject.Inject constructor(
     private val _name = MutableStateFlow("")
     private val _description = MutableStateFlow("")
     private val _icon = MutableStateFlow("book")
-    private val _color = MutableStateFlow(DEFAULT_HABIT_COLOR) // Purple40
+    private val _color = MutableStateFlow(DEFAULT_HABIT_COLOR) // primera muestra de PaletteColors
     private val _frequency = MutableStateFlow(Frequency.DAILY)
     private val _isEditing = MutableStateFlow(false)
     private val _habitId = MutableStateFlow<Long?>(null)

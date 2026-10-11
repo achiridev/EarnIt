@@ -60,8 +60,9 @@ private val SwatchSpacing = 8.dp
 /**
  * Selector de color del hábito.
  *
- * Muestra dos paletas —[PastelColors] y [VividColors]— y un botón que abre
- * [CustomColorDialog] para elegir cualquier color.
+ * Muestra una única paleta —[PaletteColors]— sin ningún encabezado que la
+ * nombre, más una muestra que abre [CustomColorDialog] para elegir cualquier
+ * color.
  *
  * El diálogo se gestiona con estado local del propio composable: la pantalla
  * que lo usa no necesita saber nada, solo recibe el color final por
@@ -84,12 +85,11 @@ fun ColorPicker(
     ) {
         SelectedColorPreview(selectedColor = selectedColor, onEditClick = { showCustomDialog = true })
 
-        Text("Pasteles", style = MaterialTheme.typography.labelLarge)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(SwatchSpacing),
             verticalArrangement = Arrangement.spacedBy(SwatchSpacing)
         ) {
-            PastelColors.forEach { color ->
+            PaletteColors.forEach { color ->
                 ColorSwatch(
                     color = color,
                     isSelected = color == selectedColor,
@@ -97,20 +97,6 @@ fun ColorPicker(
                 )
             }
             CustomColorSwatch(onClick = { showCustomDialog = true })
-        }
-
-        Text("Vívidos", style = MaterialTheme.typography.labelLarge)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(SwatchSpacing),
-            verticalArrangement = Arrangement.spacedBy(SwatchSpacing)
-        ) {
-            VividColors.forEach { color ->
-                ColorSwatch(
-                    color = color,
-                    isSelected = color == selectedColor,
-                    onClick = { onColorSelected(color) }
-                )
-            }
         }
     }
 
@@ -180,7 +166,7 @@ private fun ColorSwatch(color: Int, isSelected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Última muestra de la paleta de pasteles: abre el selector de color libre. */
+/** Última muestra de la paleta: abre el selector de color libre. */
 @Composable
 private fun CustomColorSwatch(onClick: () -> Unit) {
     Card(

@@ -132,13 +132,12 @@ Estructura:
 ```text
 Column
 ├── Row  vista previa (círculo del color + "#RRGGBB") + TextButton "Personalizado"
-├── Text "Pasteles" + FlowRow → 21 muestras de PastelColors + muestra "Personalizado"
-└── Text "Vívidos"   + FlowRow → 12 muestras de VividColors
+└── FlowRow → 13 muestras de PaletteColors + muestra "Personalizado"
 ```
 
-- **33 muestras fijas** repartidas en dos paletas: `PastelColors` (21 pasteles) y
-  `VividColors` (los 12 colores originales). Ambas están en `HabitColors.kt`, no
-  dentro del composable.
+- **13 muestras fijas**, una sola paleta: `PaletteColors`, en `HabitColors.kt`, no
+  dentro del composable. **Sin encabezado**: el selector no nombra la paleta, solo
+  la muestra.
 - Se usa `FlowRow` (`androidx.compose.foundation.layout`, **requiere
   `@OptIn(ExperimentalLayoutApi::class)`** en foundation 1.10) en lugar de una
   `Row`: la versión anterior metía ~520.dp de muestras en una `Row` sin
@@ -148,8 +147,13 @@ Column
 - El color del check (negro o blanco) lo decide `isLightColor(color)` de
   `HabitColors.kt`, que calcula la luminancia con los coeficientes de Rec. 709
   (`0.2126·R + 0.7152·G + 0.0722·B`) y la compara con `0.5`.
-- El valor por defecto del formulario es `DEFAULT_HABIT_COLOR` (`0xFF6650A4`),
-  constante de `HabitColors.kt` que **sí** coincide con `Purple40` del tema.
+- El valor por defecto del formulario es `DEFAULT_HABIT_COLOR` (`0xFFFF6E61`),
+  constante de `HabitColors.kt` que es la **primera muestra de la paleta**: un
+  hábito nuevo nace con un color que el usuario ve marcado entre las 13.
+- Sustituir la paleta **no cambia ningún hábito guardado**: el color se guarda
+  como `Int` en `Habit.color` y no se toca el esquema. Lo único que cambia es que
+  un hábito con un color de una paleta anterior ya no aparece con ninguna muestra
+  marcada.
 
 > [!tip] El componente es autónomo
 > El diálogo de color personalizado se abre y cierra con estado local del propio
@@ -188,8 +192,8 @@ Kotlin puro, sin Compose, para que sea verificable con pruebas locales:
 
 | Símbolo | Función |
 |---|---|
-| `DEFAULT_HABIT_COLOR` | `0xFF6650A4`, el color de un hábito nuevo |
-| `PastelColors` / `VividColors` | Las dos paletas del selector |
+| `DEFAULT_HABIT_COLOR` | `0xFFFF6E61`, el color de un hábito nuevo (la primera muestra de la paleta) |
+| `PaletteColors` | Los 13 colores del selector |
 | `isLightColor(Int)` | Si sobre el color hay que dibujar negro |
 | `Int.accentColor()` | Versión legible del color para iconos y texto |
 | `Int.toHexString()` | `#RRGGBB` |
@@ -201,11 +205,19 @@ Kotlin puro, sin Compose, para que sea verificable con pruebas locales:
 > es la razón de que exista `Int.toHsv()`.
 
 > [!tip] Por qué `accentColor()`
-> Un pastel tiene una luminancia demasiado alta para leerse sobre el tema claro.
-> `accentColor()` baja su intensidad manteniendo matiz y saturación hasta dejarla
-> en 0.28, pero **solo si supera 0.45**. Ese corte separa las dos paletas: los
-> 12 colores vivos originales quedan todos por debajo (el más alto, `Purple40`,
-> da 0.36) y ningún hábito existente cambia de aspecto.
+> Un color de la paleta tiene una luminancia demasiado alta para leerse sobre el
+> tema claro. `accentColor()` baja su intensidad manteniendo matiz y saturación
+> hasta dejarla en 0.28, pero **solo si supera 0.45**. Ese corte separa la
+> paleta —los 13 colores van de 0.49 a 0.89, todos por encima— de los colores
+> oscuros, incluidos los 12 "vivos" que el selector ofrecía antes (el más alto
+> daba 0.36) y los que el usuario elija a mano: ninguno se toca, así que ningún
+> hábito existente cambia de aspecto.
+
+> [!warning] Regla al añadir un color a la paleta
+> Su luminancia tiene que **superar 0.45**. Si no, `accentColor()` lo devolvería
+> intacto y se usaría sin oscurecer como texto sobre el tema claro. Lo detecta
+> `accentColor_darkensThePaletteUntilTheyAreLegible`, que además comprueba que el
+> acento resultante sea más oscuro que el color original.
 
 ### `getIcon` —Traductor de clave a `ImageVector`
 

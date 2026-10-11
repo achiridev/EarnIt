@@ -39,8 +39,8 @@ fun HabitItem(
     modifier: Modifier = Modifier
 ) {
     val themeColor = Color(color)
-    // Los pasteles no se leen sobre superficies claras: el icono y el texto usan
-    // la variante de acento. El fondo sigue usando el color puro.
+    // Los colores claros de la paleta no se leen sobre superficies claras: el icono
+    // y el texto usan la variante de acento. El fondo sigue usando el color puro.
     val accentColor = Color(color.accentColor())
     Card(
         modifier = modifier.fillMaxWidth()

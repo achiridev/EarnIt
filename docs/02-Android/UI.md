@@ -71,7 +71,7 @@ El código usa con frecuencia los roles no Primary del esquema:
 
 ### Color por hábito (la decisión visual propia del proyecto)
 
-El rasgo visual diferenciador de EarnIt es que **cada hábito tiene su propio color**, elegido por el usuario: hay **33 muestras fijas** —21 pasteles y 12 colores vivos— más un **selector de color libre** que admite cualquier tonalidad. Ese color se guarda como `Int` ARGB en `Habit.color` y se aplica así:
+El rasgo visual diferenciador de EarnIt es que **cada hábito tiene su propio color**, elegido por el usuario: hay **13 muestras fijas** —una única paleta, clara y saturada, sin ningún encabezado que la nombre— más un **selector de color libre** que admite cualquier tonalidad. Ese color se guarda como `Int` ARGB en `Habit.color` y se aplica así:
 
 | Contexto | Aplicación del color | Archivo |
 |---|---|---|
@@ -91,10 +91,10 @@ Hay **dos** colores en juego, y no es un descuido:
 
 | | Color | Por qué |
 |---|---|---|
-| Fondos (`copy(alpha = …)`) | `themeColor`, el color elegido | El pastel se ve pastel: es justo lo que se pidió |
-| Iconos y texto | `accentColor` (`color.accentColor()`) | Un pastel no se lee sobre superficie clara |
+| Fondos (`copy(alpha = …)`) | `themeColor`, el color elegido | Se ve tal cual, que es justo lo que se pidió |
+| Iconos y texto | `accentColor` (`color.accentColor()`) | Un color claro no se lee sobre superficie clara |
 
-`Int.accentColor()` baja la intensidad del color manteniendo matiz y saturación **solo si su luminancia supera 0.45**. Ese umbral separa las dos paletas: los 12 colores vivos originales quedan todos por debajo (el más alto es `Purple40`, con 0.36) y se devuelven intactos, así que **ningún hábito ya guardado cambia de aspecto**. Los pasteles, todos por encima de 0.65, se oscurecen hasta llegar a 0.28. Ver [[Componentes]].
+`Int.accentColor()` baja la intensidad del color manteniendo matiz y saturación **solo si su luminancia supera 0.45**. Por debajo quedan los colores que la app ya usaba —los 12 "vivos" de la paleta anterior, cuyo más alto daba 0.36— y los oscuros que elija el usuario: se devuelven intactos, así que **ningún hábito ya guardado cambia de aspecto**. Los 13 de la paleta actual van de 0.49 a 0.89 y se oscurecen hasta llegar a 0.28. Ver [[Componentes]].
 
 ### Tipografía
 
@@ -157,9 +157,9 @@ Inventario de cadenas hardcodeadas (parcial, para dimensionar el trabajo):
 | `HabitFormScreen` | "Editar hábito", "Nuevo hábito", "Volver", "Guardar", "Nombre del hábito", "Descripción (opcional)", "Icono", "Color", "Frecuencia", "Diario", "Seleccionado" |
 | `HabitItem` | "Completed", "Not completed" |
 | `IconPicker` | "Selected" |
-| `ColorPicker` | "Pasteles", "Vívidos", "Personalizado", "Color personalizado", "Aplicar", "Cancelar", "Seleccionado", "Elegir un color personalizado" |
+| `ColorPicker` | "Personalizado", "Color personalizado", "Aplicar", "Cancelar", "Seleccionado", "Elegir un color personalizado" |
 
-Son **~35 cadenas**. Externalizarlas es trabajo mecánico, no difícil.
+Son **~33 cadenas**. Externalizarlas es trabajo mecánico, no difícil.
 
 > [!warning] Restricción de Lint que conviene conocer
 > El proyecto ya evitó un fallo de compilación por Lint: **no se puede llamar a `Locale.getDefault()` dentro de un `@Composable`** (se dispara `NonObservableLocale`). El patrón correcto ya está aplicado en `HistoryItem` (`HabitDetailScreen.kt:213`):
@@ -185,7 +185,7 @@ Existe una inconsistencia real de idioma en los `contentDescription`: la app est
 
 ### Contraste de los colores de hábito
 
-Los colores vivos originales salen legibles sobre superficie clara, pero los pasteles no: su luminancia supera 0.65 y como texto o tint de icono desaparecen. `Int.accentColor()` los oscurece para icono y texto y deja el pastel intacto para el fondo (ver la tabla anterior). El umbral se calibró para que **ninguno de los 12 colores previos cambie de aspecto**, de modo que no hay regresión visual en los hábitos ya guardados.
+Los colores de la paleta son claros pero no legibles como texto: su luminancia va de 0.49 a 0.89 y sobre superficie clara desaparecen. `Int.accentColor()` los oscurece para icono y texto y deja el color intacto para el fondo (ver la tabla anterior). El umbral está calibrado para que **ninguno de los colores que la app ya usaba cambie de aspecto**, de modo que no hay regresión visual en los hábitos ya guardados.
 
 Lo que **no** está verificado: la app no se auditó contra WCAG, y el contraste en tema oscuro (donde el color de acento se dibuja sobre superficies oscuras) no se ha comprobado en ningún sitio.
 
