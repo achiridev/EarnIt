@@ -39,6 +39,9 @@ fun HabitItem(
     modifier: Modifier = Modifier
 ) {
     val themeColor = Color(color)
+    // Los pasteles no se leen sobre superficies claras: el icono y el texto usan
+    // la variante de acento. El fondo sigue usando el color puro.
+    val accentColor = Color(color.accentColor())
     Card(
         modifier = modifier.fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -64,7 +67,7 @@ fun HabitItem(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isCompleted) themeColor else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isCompleted) accentColor else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -74,7 +77,7 @@ fun HabitItem(
                         text = name,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (isCompleted) themeColor else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+                        color = if (isCompleted) accentColor else androidx.compose.material3.MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -89,7 +92,7 @@ fun HabitItem(
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = "Completed",
-                        tint = themeColor,
+                        tint = accentColor,
                         modifier = Modifier.size(24.dp)
                     )
                 } else {

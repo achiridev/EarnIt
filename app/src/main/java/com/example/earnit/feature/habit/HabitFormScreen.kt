@@ -61,6 +61,7 @@ fun HabitFormScreen(
     val color by viewModel.color.collectAsStateWithLifecycle()
     val frequency by viewModel.frequency.collectAsStateWithLifecycle()
     val isEditing by viewModel.isEditing.collectAsStateWithLifecycle()
+    val isValid by viewModel.isValid.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     // Load the habit when the screen is opened in "edit" mode.
@@ -87,14 +88,14 @@ fun HabitFormScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (viewModel.isValid()) {
+                            if (isValid) {
                                 scope.launch {
                                     viewModel.save()
                                     onSave()
                                 }
                             }
                         },
-                        enabled = viewModel.isValid(),
+                        enabled = isValid,
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary

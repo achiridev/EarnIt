@@ -1,80 +1,132 @@
-# AGENTS.md: EarnIt Android Project
+# AGENTS.md
 
-This file contains repo-specific guidance for OpenCode agents working on the EarnIt project.
+Behavioral guide for agents working on **EarnIt** (Android, Kotlin, Compose).
 
-## Build & Test Commands
+This file does **not** document the project: it says **how to work** in it.
+Technical detail lives in `docs/`. The code is always the source of truth.
 
-| Command | Description |
-|---|---|
-| `./gradlew lintDebug` | Run Android Lint (step 1 of the verification order) |
-| `./gradlew test` | Run unit tests (local JVM tests) |
-| `./gradlew assembleDebug` | Build the debug APK |
-| `./gradlew assembleRelease` | Build the release APK (requires sign config) |
-| `./gradlew connectedAndroidTest` | Run instrumented tests on a device/emulator (needs a connected device) |
-| `./gradlew tasks` | List all available Gradle tasks |
+## 1. Context loading (on demand)
 
-**Order matters**: Run `lint -> test -> assembleDebug` in that order (running tests alone may miss lint errors).
+Do not read `docs/` wholesale. For any task:
 
-## Build Stack (pinned — do not "fix" casually)
+1. This file.
+2. `docs/INDEX.md` — only to locate what you need.
+3. The 1–3 documents the task actually requires.
+4. The affected code.
 
-| Piece | Version | Notes |
-|---|---|---|
-| Gradle wrapper | 9.6.0 | `gradle/wrapper/gradle-wrapper.properties` |
-| AGP | 9.4.1 | Requires Gradle >= 9.x |
-| Kotlin | 2.2.10 | **Built into AGP 9** — there is *no* `org.jetbrains.kotlin.android` plugin |
-| KSP | 2.2.10-2.0.2 | Needs `android.disallowKotlinSourceSets=false` (already set) |
-| Room | 2.7.2 | Older Room (2.6.x) crashes with KSP2 (`unexpected jvm signature V`) |
-| Compose BOM | 2026.02.01 | Pulls foundation/material3 1.10.x — see quirks below |
+**Proportional effort.** If the change does not affect behavior, architecture or
+documentation (a string, a color, an internal name), go straight to the code and do not
+open `docs/`. Never skip this file.
 
-**Hard rules for this repo** (each one caused a build break in the past):
+If the docs do not cover what you need, **read the code** and record the gap when it
+affects documented information.
 
-- `gradle/gradle-daemon-jvm.properties` pins the Gradle daemon to **JDK 25 (Adoptium 25.0.3)** and is downloaded by Gradle itself. Never delete it, and never add `org.gradle.java.home` to `gradle.properties` (it is silently ignored and desyncs the daemon).
-- Do **not** add `org.jetbrains.kotlin.android` / `kotlin("android")` — AGP 9 owns Kotlin. Keep `com.android.application`, `org.jetbrains.kotlin.plugin.compose` and `com.google.devtools.ksp` only.
-- All versions live in `gradle/libs.versions.toml` and are referenced in `app/build.gradle.kts` through `libs.*` aliases. Do not hardcode dependency versions in the build script.
-- Kotlin compiles to **JVM 11** (`compileOptions` + `kotlin { compilerOptions }` block). Changing one without the other breaks JVM-target consistency.
-- Harmless config-time warning you will see: `Kotlin does not yet support 25 JDK target, falling back to Kotlin JVM_24`. Compiled classes are still bytecode major 55 (Java 11) — ignore it.
+## 2. Invariants — breaking these costs a full build
 
-## Project Structure
+Each one has broken the build before. The reasoning lives in
+`docs/01-Arquitectura/DecisionesTecnicas.md`.
 
-This is a Clean-architecture-style Android app (Kotlin + Jetpack Compose).
+- **Do not delete `gradle/gradle-daemon-jvm.properties`**, and never add
+  `org.gradle.java.home` to `gradle.properties`. The first pins the daemon to JDK 25;
+  the second is silently ignored and desyncs the daemon.
+- **Do not add the `org.jetbrains.kotlin.android` / `kotlin("android")` plugin.**
+  AGP 9 provides Kotlin natively.
+- **Do not change versions by hand.** Everything lives in `gradle/libs.versions.toml`
+  and is referenced through `libs.*`. Upgrading without verifying has already broken
+  the build (Room/KSP2).
+- **Change `jvmTarget` and `sourceCompatibility`/`targetCompatibility` together.**
+- **The warning `Kotlin does not yet support 25 JDK target… JVM_24` is expected.** Ignore
+  it; the bytecode is still Java 11.
+- **`AppDatabase` uses `fallbackToDestructiveMigration()`.** Any schema change wipes user
+  data. If the task requires touching it, say so before touching anything.
 
-- `domain/` — pure Kotlin: models (`Habit`, `HabitCompletion`, `Frequency`, `HabitStatus`), repository interfaces, use cases (e.g., `CreateHabitUseCase`, `ToggleCompletionUseCase`).
-- `data/` — Room database, DAOs, entities, repository implementations (`HabitRepositoryImpl`).
-- `feature/` — UI screens and ViewModels (`HomeViewModel`, `HabitDetailViewModel`).
-- `core/di/AppContainer` — manual dependency injection container; creates `AppDatabase`, provides `DateProvider`, and instantiates repositories & use cases.
-- `core/ui/components/` — reusable Compose UI helpers (e.g., `IconHelper` maps icon names to `Icons.Filled` constants).
+## 3. Conventions you must not break
 
-**Entry points**: `MainActivity.kt` → `AppNavHost` → feature screens (`HomeScreen`, `HabitDetailScreen`).
+- **No Hilt.** The graph is wired manually (`AppContainer`). Every new ViewModel means
+  editing **three** places: `AppContainer`, `core/di/ViewModelFactories.kt` and
+  `MainActivity`. See `docs/05-Decisiones/ADR-0001.md`.
+- **`Entity` ↔ model conversions are explicit** (`toEntity()` / `toDomain()` private in
+  the repositories). Do not add logic to DAOs or implicit conversions.
+- **Keep Turbine at `1.0.0`**: `1.0.1` does not exist on Maven Central.
+- **`local.properties` is git-ignored.** Do not edit it or let it reach the repo.
 
-## Key Conventions & Quirks
+## 4. How to work
 
-- **Database migration**: `AppDatabase.getInstance()` uses `fallbackToDestructiveMigration()` — schema changes will wipe user data. Bump `version` and write a proper migration if needed.
-- **DI**: No Hilt. `AppContainer(context)` wires everything manually, and `core/di/ViewModelFactories.kt` holds the three manual `ViewModelProvider.Factory` classes (`HomeViewModelFactory`, `HabitFormViewModelFactory`, `HabitDetailViewModelFactory`). Keep factories and container in sync — `MainActivity` wires them via `by viewModels { ... }`.
-- **Room entities vs. domain models**: `HabitEntity` (persisted) ↔ `Habit` (domain) are converted via `toEntity()` / `toDomain()` in `HabitRepositoryImpl`. Fields differ: `createdAt` is unix ms in entity, `LocalDate` in domain; `frequency` and `status` are enums in both but mapped separately.
-- **Icon mapping**: `core/ui/components/IconHelper.getIcon()` uses a `when` chain for icon names. If adding a new icon, add a case here *and* register the icon import.
-- **Material icons are extension properties**: you must `import androidx.compose.material.icons.filled.X` and write `Icons.Filled.X`. Fully-qualified access (`androidx.compose.material.icons.Icons.Filled.X`) **does not compile**. `material-icons-extended` is on the classpath for the long-tail icons.
-- **Foundation 1.10 package moves**: `rememberScrollState` / `verticalScroll` live in `androidx.compose.foundation` (there is no `androidx.compose.foundation.scroll` anymore). `LazyHorizontalGrid` takes `rows = GridCells.Fixed(n)` (not `cells`); `LazyVerticalGrid` takes `columns`.
-- **No `Locale.getDefault()` inside `@Composable`** — Lint fails the build with `NonObservableLocale`. Read `LocalConfiguration.current.locales[0]` instead.
-- **Concurrency**: repository methods that *return a `Flow`* are **not** `suspend` (only `insert`/`update`/`getById`/`upsert` are). Use cases are `operator suspend fun invoke(...)`; call them from `viewModelScope.launch { }` in ViewModels or from a `rememberCoroutineScope().launch { }` in a screen. Long-running mutations funnel through the callbacks that `AppNavHost` passes down, so the screens stay side-effect free.
-- **Dependency Order**: `lint -> test -> assembleDebug`. Running tests alone may miss lint errors.
-- **Version control**: `local.properties` is auto-generated and git-ignoded — do not commit changes to SDK paths.
+**Before.** Understand the goal and how the result is checked. Locate the affected
+files and read only the docs you need. **Check whether the functionality already
+exists** before creating it. Ask only when information is missing that you cannot safely
+infer; do not demand lengthy plans for small changes.
 
-## Testing Quirks
+**While.** Make the smallest change that solves the problem. Follow existing conventions
+and reuse what is already there. Do **not** introduce refactors, layers, abstractions,
+dependencies or architecture the task did not ask for. Do not hide errors behind empty
+catches, invented values or silent temporary workarounds.
 
-- Unit tests: `./gradlew test` runs local JVM tests (e.g., `ExampleUnitTest.kt`).
-- Instrumented tests: `./gradlew connectedAndroidTest` runs on device/emulator.
-- Mockito is used for mocking; Robolectric for Android context simulation; Turbine for Flow testing.
-- Turbine must stay on `1.0.0` — the originally pinned `1.0.1` does not exist on Maven Central and fails resolution only for `test*` configurations (main builds still pass).
-- Instrumented tests require a connected device/emulator; there is usually none, so `connectedAndroidTest` is normally skipped.
-- Test fixtures/data: keep an eye on `data/local/entity/` vs `domain/model/` mapping — tests that cross this boundary need `toEntity()` / `toDomain()` logic.
+**After.** Review your own diff. Run the verification. Update only the affected docs.
+**Report honestly**: distinguish what passed, what failed, and what you **could not
+run**. Never claim you compiled, tested or installed something you did not run.
 
-## Adding a New Use Case / Feature
+## 5. Verification
 
-1. Define model in `domain/model/` (data class + enums).
-2. Add repository method to `domain/repository/` interface + impl in `data/repository/`**.
-3. Create use case in `domain/usecase/` as a class with a single `operator suspend fun invoke(...)` (return a `Flow` from a non-suspend method if you just observe data).
-4. Wire in `AppContainer`.
-5. Add UI in `feature/`, a factory in `core/di/ViewModelFactories.kt` if it is a new ViewModel, and navigation in `AppNavHost`.
-6. Run `./gradlew lintDebug test assembleDebug` to verify.
+```bash
+./gradlew lintDebug test assembleDebug
+```
 
-****: Repository impls convert between Entity ↔ Model via private `toEntity()` / `toDomain()`.
+In that order: lint catches errors tests never see. Skipping it produces a false
+"all green". Command reference and per-task status: `docs/04-Desarrollo/Build.md`.
+
+## 6. Documentation
+
+**Update `docs/` when** a decision, documented behavior, feature, data model, migration
+or build/test procedure changes — or when you find a gap between docs and code.
+
+**Do not update** for internal-only changes, typos or inconsequential local tweaks.
+
+Edit only the affected documents. Add a new document only when it carries knowledge that
+does not fit an existing one, and update `docs/INDEX.md` whenever the set changes. The
+code wins: if it contradicts `docs/`, fix `docs/`.
+
+## 7. ADRs
+
+Create an ADR from `docs/99-Templates/ADR-Template.md` for **durable decisions with
+consequences**: architecture, foundational technology, persistence strategy, or
+rejecting an alternative a future developer will need to understand.
+
+Do not create one for fixes, visual changes, local refactors or trivial reversible
+decisions. Look for a related ADR first; if an existing decision changes, update its
+state instead of silently rewriting history.
+
+## 8. Scope and safety
+
+- **Do not touch files outside the task.** If a fix appears to need another file, say
+  so instead of widening scope.
+- **Check `git status` before editing.** Never discard, revert or overwrite uncommitted
+  changes that are not yours — they are the user's work in progress.
+- **Do not change dependencies, versions or build configuration on your own initiative.**
+- **Never introduce credentials, keys or secrets** into the repo or the docs.
+- **Do not disable tests or checks** to manufacture a passing result.
+- **Ask first** before destructive or high-impact operations: deleting files or data,
+  Git commands that discard work, `clean`, mass reformatting, migrations that wipe data.
+- **Do not report partial work as done.** State what is missing.
+
+## 9. Parallel work and Git isolation
+
+One task, one branch, one worktree. Never edit files while on `main`.
+
+- **Isolate before editing.** Create a task branch (`git switch -c <task>`) and,
+  when other agents may run at the same time, a dedicated worktree
+  (`git worktree add ../earnit-<task> -b <task>`). Two agents sharing one working
+  directory overwrite each other.
+- **Reuse before creating.** If the task already has a branch and a worktree,
+  use them instead of adding another.
+- **Look beyond your own worktree.** `git status` only reports the current one:
+  check every worktree you touch (`git worktree list`) and treat changes you did
+  not make as read-only (§8).
+- **No history operations.** Do not `commit`, `push`, merge, rebase, tag or force
+  anything without explicit authorization. Leaving the result in the worktree is
+  the expected end state.
+- **Close with a diff review** (§4, *After*): only this task's changes, nothing
+  else — no stray files, no drive-by reformatting.
+- **Cannot isolate? Stop and report.** If the task needs files another agent is
+  changing, or a branch/worktree cannot be created safely, say so instead of
+  working in the shared tree.

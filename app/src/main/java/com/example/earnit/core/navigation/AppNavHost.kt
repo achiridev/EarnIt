@@ -72,6 +72,8 @@ fun AppNavHost(
             HabitDetailScreen(
                 viewModel = habitDetailViewModel,
                 habitId = habitId,
+                habitRepository = habitRepository,
+                onBack = { navController.popBackStack() },
                 onEdit = { habit ->
                     habitFormViewModel.loadHabit(habit)
                     navController.navigate("edit_habit/${habit.id}")

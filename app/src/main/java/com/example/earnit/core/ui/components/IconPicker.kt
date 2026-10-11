@@ -3,9 +3,9 @@ package com.example.earnit.core.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChromeReaderMode
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Code
@@ -43,11 +42,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private const val IconRows = 5
+private val IconSize = 56.dp
+private val IconSpacing = 8.dp
+
+// 5 rows + 4 gaps + vertical content padding (2 * 8.dp)
+private val iconGridHeight = IconSize * IconRows + IconSpacing * (IconRows - 1) + 16.dp
 
 @Composable
 fun IconPicker(
@@ -79,8 +84,14 @@ fun IconPicker(
     )
 
     LazyHorizontalGrid(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        rows = GridCells.Fixed(5),
+        // Lazy layouts need a bounded height: a Column with verticalScroll gives
+        // infinite constraints and would throw
+        // "LazyHorizontalGrid's height should be bound by parent".
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(iconGridHeight),
+        rows = GridCells.Fixed(IconRows),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)
@@ -114,73 +125,4 @@ fun IconPicker(
     }
 }
 
-@Composable
-fun ColorPicker(
-    selectedColor: Int,
-    onColorSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = listOf(
-        0xFF6650A4.toInt(), // Purple
-        0xFF006E54.toInt(), // Teal
-        0xFF8B5000.toInt(), // Brown
-        0xFF7D5260.toInt(), // Pink
-        0xFF4A626A.toInt(), // Blue Grey
-        0xFF3B4D10.toInt(), // Green
-        0xFF8B0000.toInt(), // Red
-        0xFF6B5800.toInt(), // Yellow
-        0xFF006B7C.toInt(), // Cyan
-        0xFF5C2E7C.toInt(), // Deep Purple
-        0xFF1A7538.toInt(), // Green
-        0xFF7C4D00.toInt(), // Orange
-    )
-
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        colors.forEach { color ->
-            val isSelected = selectedColor == color
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.material3.Card(
-                    modifier = Modifier.size(36.dp),
-                    onClick = { onColorSelected(color) },
-                    elevation = androidx.compose.material3.CardDefaults.cardElevation(
-                        defaultElevation = if (isSelected) 4.dp else 1.dp
-                    ),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = Color(color)
-                    )
-                ) {
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier.size(36.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = "Selected",
-                                tint = if (isLightColor(color)) Color.Black else Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun isLightColor(color: Int): Boolean {
-    val r = ((color shr 16) and 0xFF) / 255f
-    val g = ((color shr 8) and 0xFF) / 255f
-    val b = (color and 0xFF) / 255f
-    val luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    return luminance > 0.5
-}
+// `ColorPicker` e `isLightColor` viven en ColorPicker.kt y HabitColors.kt.

@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,9 +40,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.earnit.core.ui.components.accentColor
 import com.example.earnit.core.ui.components.getIcon
 import com.example.earnit.domain.model.Habit
 import com.example.earnit.domain.model.HabitCompletion
+import com.example.earnit.domain.repository.HabitRepository
 import com.example.earnit.ui.theme.EarnItTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -52,15 +55,24 @@ import java.time.format.TextStyle
 fun HabitDetailScreen(
     viewModel: HabitDetailViewModel,
     habitId: Long,
+    habitRepository: HabitRepository?,
+    onBack: () -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: () -> Unit,
     onToggleCompletion: (LocalDate) -> Unit
 ) {
-    val habit = viewModel.getHabit()
+    val habit by viewModel.habit.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val today = LocalDate.now()
+    val isCompletedToday = history.any { it.date == today && it.completed }
 
-    // Initialize viewModel with habit data
-    // This would typically be done in the ViewModel initialization
+    // Relee el hábito por id, igual que hace `HabitFormScreen`. Sin esto el detalle
+    // depende de que `AppNavHost` haya llamado a `initialize()` antes de navegar, así
+    // que al restaurar el back stack directamente en `habit_detail/{id}` la pantalla
+    // queda vacía, y tras editar muestra los datos antiguos (BUG-004).
+    LaunchedEffect(habitId) {
+        habitRepository?.getById(habitId)?.let { viewModel.initialize(it, today) }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -68,7 +80,7 @@ fun HabitDetailScreen(
             TopAppBar(
                 title = { Text(text = habit?.name ?: "Hábito", fontWeight = FontWeight.Medium) },
                 navigationIcon = {
-                    IconButton(onClick = { /* navController.popBackStack() */ }) {
+                    IconButton(onClick = onBack) {
                         Icon(imageVector = Icons.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -98,6 +110,7 @@ fun HabitDetailScreen(
             habit?.let { h ->
                 HabitHeaderCard(
                     habit = h,
+                    isCompleted = isCompletedToday,
                     onToggle = { onToggleCompletion(LocalDate.now()) }
                 )
             }
@@ -124,11 +137,13 @@ fun HabitDetailScreen(
 @Composable
 fun HabitHeaderCard(
     habit: Habit,
+    isCompleted: Boolean,
     onToggle: () -> Unit
 ) {
     val themeColor = Color(habit.color)
-    val today = LocalDate.now()
-    val isCompleted = false // Would come from viewModel
+    // El fondo usa el color puro; icono y texto, la variante de acento, para que
+    // los colores pasteles sigan siendo legibles sobre superficies claras.
+    val accentColor = Color(habit.color.accentColor())
 
     androidx.compose.material3.Card(
         modifier = Modifier
@@ -153,7 +168,7 @@ fun HabitHeaderCard(
                 Icon(
                     imageVector = getIcon(habit.icon),
                     contentDescription = null,
-                    tint = themeColor,
+                    tint = accentColor,
                     modifier = Modifier.size(48.dp)
                 )
             }
@@ -162,7 +177,7 @@ fun HabitHeaderCard(
                 text = habit.name,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = themeColor
+                color = accentColor
             )
             habit.description?.let { desc ->
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
@@ -182,7 +197,7 @@ fun HabitHeaderCard(
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = "Completado",
-                        tint = themeColor,
+                        tint = accentColor,
                         modifier = Modifier.size(24.dp)
                     )
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
@@ -190,7 +205,7 @@ fun HabitHeaderCard(
                         text = "Completado hoy",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = themeColor
+                        color = accentColor
                     )
                 } else {
                     Text(

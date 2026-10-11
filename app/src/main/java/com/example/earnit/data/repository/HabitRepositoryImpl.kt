@@ -1,5 +1,7 @@
 package com.example.earnit.data.repository
 
+import com.example.earnit.core.util.toEpochMillis
+import com.example.earnit.core.util.toLocalDate
 import com.example.earnit.data.local.dao.HabitDao
 import com.example.earnit.data.local.entity.HabitEntity
 import com.example.earnit.domain.model.Habit
@@ -9,7 +11,6 @@ import com.example.earnit.domain.repository.HabitRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
-import java.time.ZoneId
 
 class HabitRepositoryImpl @javax.inject.Inject constructor(
     private val habitDao: HabitDao
@@ -34,6 +35,9 @@ class HabitRepositoryImpl @javax.inject.Inject constructor(
     }
 
     override fun getActiveHabitsForDate(date: LocalDate): Flow<List<Habit>> {
+        // TODO(frequency): `date` is currently ignored because Frequency only has DAILY.
+        //   When more frequencies land (WEEKLY, etc.), filter based on the habit's
+        //   frequency vs this date (mapping code for such a filter does not exist yet).
         return habitDao.getActiveHabits().map { entities ->
             entities.map { toDomain(it) }
         }
@@ -53,7 +57,7 @@ class HabitRepositoryImpl @javax.inject.Inject constructor(
             icon = habit.icon,
             color = habit.color,
             frequency = habit.frequency,
-            createdAt = habit.createdAt.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            createdAt = habit.createdAt.toEpochMillis(),
             status = habit.status
         )
     }
@@ -66,7 +70,7 @@ class HabitRepositoryImpl @javax.inject.Inject constructor(
             icon = entity.icon,
             color = entity.color,
             frequency = entity.frequency,
-            createdAt = LocalDate.ofEpochDay(entity.createdAt / 86400000),
+            createdAt = entity.createdAt.toLocalDate(),
             status = entity.status
         )
     }
