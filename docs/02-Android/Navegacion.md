@@ -88,7 +88,7 @@ composable("habit_detail/{habitId}") { backStackEntry ->
             scope.launch { habitDetailViewModel.archive() }
             navController.popBackStack()
         },
-        onToggleCompletion = { date ->
+        onToggleCompletion = {
             scope.launch { habitDetailViewModel.toggleCompletion() }
         }
     )
@@ -100,11 +100,13 @@ Ventajas reales de este patrón:
 - Las pantallas no conocen el `NavController`, lo que las hace previsualizables y testeables (el test instrumentado de `HabitFormScreen` lo demuestra).
 - Las escrituras pasan por un `rememberCoroutineScope()` del NavHost, no por `viewModelScope`: la operación se cancela si el NavHost sale de la composición.
 - Los ViewModel se crean en `MainActivity` y se pasan ya construidos, así que **las pantallas no saben de dónde vienen**.
+- La navegación al detalle arrastra el día del calendario: `onHabitClick = { habit, date -> habitDetailViewModel.initialize(habit, date); navigate(...) }`, de modo que editar un hábito desde un día pasado opera sobre ese día.
 
 Coste real:
 
-- **`AppNavHost` recibe 6 parámetros** (`homeViewModel`, `habitFormViewModel`, `habitDetailViewModel`, `habitRepository`, `completionRepository`, `toggleCompletionUseCase`). Con más pantallas esta firma crece sin límite. Es el punto de tensión del patrón.
+- **`AppNavHost` recibe 5 parámetros** (`homeViewModel`, `habitFormViewModel`, `habitDetailViewModel`, `habitRepository`, `toggleCompletionUseCase`). `completionRepository` ya no se pasa: las completiones llegan al `HomeViewModel` por `GetCompletionsForDateUseCase`. Con más pantallas esta firma crece sin límite. Es el punto de tensión del patrón.
 - **El orden de las llamadas importa y es implícito**: `habitFormViewModel.clear()` debe ejecutarse *antes* de `navigate("add_habit")`, porque `HabitFormScreen` lee ese estado en su primera composición. Invertirlo mostraría los datos del hábito anterior.
+- **El detalle depende de `initialize()`**: `HabitDetailScreen` relee el hábito por id, pero la fecha seleccionada solo llega si el NavHost llamó a `initialize(habit, date)` antes de navegar.
 
 ### La tabla de argumentos
 
@@ -167,14 +169,13 @@ La flecha se comporta como el `onCancel` de `HabitFormScreen`, que ya funcionaba
 
 | # | Pendiente | Ubicación |
 |---|---|---|
-| 1 | `onToggleCompletion(date)` ignora el `date` que recibe | `AppNavHost.kt:83-85` |
-| 2 | Doble carga del hábito en modo edición (BUG-010) | `AppNavHost.kt:76` + `HabitFormScreen.kt:67` |
-| 3 | `AppNavHost` recibe 7 parámetros y crece sin límite | `AppNavHost.kt:22-31` |
+| 1 | Doble carga del hábito en modo edición (BUG-010) | `AppNavHost.kt` + `HabitFormScreen.kt` |
+| 2 | `AppNavHost` recibe 5 parámetros y crece sin límite | `AppNavHost.kt` |
 
 ### Mejoras recomendadas (no decididas)
 
 - **Reemplazar los ViewModel de `Activity` por ViewModel por destino** (`viewModel { … }` de navigation-compose o `by navGraphViewModels`), para que cada instancia quede asociada a su ruta y se pueda usar `SavedStateHandle`. Cerraría la causa de fondo de BUG-004.
-- **Extraer el tipo de pantalla en un `sealed interface`** y reducir los 7 parámetros de `AppNavHost` agrupándolos.
+- **Extraer el tipo de pantalla en un `sealed interface`** y reducir los 5 parámetros de `AppNavHost` agrupándolos.
 - **Añadir transiciones** entre rutas (`AnimatedContentTransitionScope`) — hoy el cambio de pantalla es instantáneo.
 - **Preservar el estado de scroll** de `HomeScreen` al volver del detalle (`popUpTo("home") { saveState = true }`).
 - **Declarar deep links** si en el futuro se quiere abrir un hábito desde una notificación o un enlace externo. Requeriría rethink del paso de `habitId`.

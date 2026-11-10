@@ -95,7 +95,7 @@ La documentación se escribió **inspeccionando el código y la configuración**
 
 Solo orientación. El detalle está en [[Contexto]], [[Roadmap]] y [[Bugs]].
 
-App Android **100 % local** (Kotlin + Compose + Material 3), un módulo, un `Activity`, sin red ni permisos. Funcionalidad: crear, listar, marcar, ver historial, editar y archivar hábitos. Pruebas: 2 unitarios + 3 instrumentados; la cobertura de la lógica de dominio sigue siendo baja. **15 bugs** documentados en [[Bugs]], cinco de ellos ya corregidos.
+App Android **100 % local** (Kotlin + Compose + Material 3), un módulo, un `Activity`, sin red ni permisos. Funcionalidad: crear, listar, marcar, ver historial, editar y archivar hábitos, con calendario semanal/mensual para elegir el día. Pruebas: 5 archivos unitarios (20 tests) + 3 instrumentados (6 tests); la cobertura de la lógica de dominio sigue siendo baja. **15 bugs** documentados en [[Bugs]], seis de ellos ya corregidos.
 
 ## Criterio para añadir documentos y mantener este índice
 

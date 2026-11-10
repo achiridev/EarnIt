@@ -26,7 +26,7 @@ Arquitectura **Clean Architecture de tres capas**, implementada de forma real y 
 domain/
 ├── model/       Habit, HabitCompletion, Frequency, HabitStatus
 ├── repository/  HabitRepository, HabitCompletionRepository  (interfaces)
-└── usecase/     6 casos de uso
+└── usecase/     7 casos de uso
 ```
 
 Reglas que se cumplen:
@@ -34,7 +34,7 @@ Reglas que se cumplen:
 - Los repositorios son **interfaces** definidas en el dominio; las implementaciones viven en `data/`. Esto permite invertir la dependencia: el dominio no sabe que existe Room.
 - Los casos de uso son clases con un único `operator fun invoke(...)`, sin estado.
 
-Los 6 casos de uso y su firma:
+Los 7 casos de uso y su firma:
 
 | Caso de uso | Firma | Qué hace |
 |---|---|---|
@@ -42,6 +42,7 @@ Los 6 casos de uso y su firma:
 | `UpdateHabitUseCase` | `suspend operator fun invoke(habit: Habit)` | Actualiza por clave primaria |
 | `ArchiveHabitUseCase` | `suspend operator fun invoke(habitId: Long)` | Lee, y solo si está `ACTIVE`, pasa a `ARCHIVED` |
 | `GetTodaysHabitsUseCase` | `operator fun invoke(): Flow<List<Habit>>` | Resuelve "hoy" con `DateProvider` y filtra |
+| `GetCompletionsForDateUseCase` | `operator fun invoke(date: LocalDate): Flow<List<HabitCompletion>>` | Completiones de un día concreto |
 | `ToggleCompletionUseCase` | `suspend operator fun invoke(habitId: Long, date: LocalDate? = null): Boolean` | Alterna `completed` y persiste |
 | `GetHabitHistoryUseCase` | `operator fun invoke(habitId: Long): Flow<List<HabitCompletion>>` | Historial completo del hábito |
 
@@ -76,11 +77,11 @@ feature/
 └── habit/   HabitDetailScreen, HabitDetailViewModel, HabitFormScreen, HabitFormViewModel
 ```
 
-Cada *feature* agrupa pantalla y ViewModel en el mismo paquete. Los componentes reutilizables entre pantallas viven aparte, en `core/ui/components/`.
+Cada *feature* agrupa pantalla y ViewModel en el mismo paquete. Los componentes reutilizables entre pantallas viven aparte, en `core/ui/components/`; la lógica pura de calendario (semanas y cuadrícula mensual), en `core/util/CalendarDates.kt`.
 
 ### Flujo de datos: lectura y escritura
 
-**Lectura (reactiva, con `Flow`)**
+**Lectura (reactiva, con `Flow`)** — dos cadenas que convergen en `HomeViewModel`
 
 ```text
 Room (InvalidationTracker)
@@ -89,9 +90,19 @@ HabitDao.getActiveHabits()
       ↓  .map { toDomain(it) }
 HabitRepositoryImpl.getActiveHabitsForDate()
       ↓
-GetTodaysHabitsUseCase()
-      ↓  .stateIn(viewModelScope, WhileSubscribed(5_000), emptyList())
+GetTodaysHabitsUseCase()                (devuelve activos; no filtra por fecha)
+      ↓  .combine(selectedDate) { filtra createdAt ≤ día }
 HomeViewModel.habits : StateFlow<List<Habit>>
+
+Room (InvalidationTracker)
+      ↓  Flow<List<HabitCompletionEntity>>
+HabitCompletionDao.getForDate(date)
+      ↓  .map { toDomain(it) }
+HabitCompletionRepositoryImpl
+      ↓
+GetCompletionsForDateUseCase(date)
+      ↓  .flatMapLatest sobre `selectedDate`
+HomeViewModel.completions : StateFlow<List<HabitCompletion>>
       ↓  collectAsStateWithLifecycle()
 HomeScreen → recomposición
 ```
@@ -103,7 +114,7 @@ La cadena es unidireccional y sin sorpresas: la base de datos es la única fuent
 ```text
 toque del usuario en HabitItem.onToggle
       ↓
-HomeScreen onToggleCompletion(habitId, today)      ← lambda, no ViewModel
+HomeScreen onToggleCompletion(habitId, selectedDate)   ← lambda, no ViewModel
       ↓
 AppNavHost: scope.launch { toggleCompletionUseCase(habitId, date) }
       ↓
@@ -132,7 +143,7 @@ AppNavHost    ── rememberNavController() + rememberCoroutineScope()
 HomeScreen / HabitFormScreen / HabitDetailScreen
 ```
 
-`AppContainer` (`core/di/AppContainer.kt`) construye todo el grafo en 35 líneas: base de datos, `DateProvider`, 2 repositorios y 6 casos de uso. Se expone como `lateinit var appContainer` en `EarnItApplication`.
+`AppContainer` (`core/di/AppContainer.kt`) construye todo el grafo en 35 líneas: base de datos, `DateProvider`, 2 repositorios y 7 casos de uso. Se expone como `lateinit var appContainer` en `EarnItApplication`.
 
 `MainActivity` obtiene los tres ViewModel con `by viewModels { ... }`, cada uno con su factory de `core/di/ViewModelFactories.kt`.
 
@@ -142,9 +153,11 @@ HomeScreen / HabitFormScreen / HabitDetailScreen
 |---|---|---|
 | `domain/` | `domain/`, `kotlinx.coroutines`, `java.time` | ✅ Sí, totalmente |
 | `data/` | `domain/`, Room, `core/util` | ✅ Sí |
-| `feature/` | `domain/`, `core/ui`, Compose | ⚠️ **Excepción**: `HomeScreen` importa `domain.repository.HabitCompletionRepository` y `HabitFormScreen` importa `domain.repository.HabitRepository`, y ambos los reciben como parámetro desde `AppNavHost` |
+| `feature/` | `domain/`, `core/ui`, Compose | ⚠️ **Excepción**: `HabitFormScreen` importa `domain.repository.HabitRepository` y lo recibe como parámetro desde `AppNavHost` |
 
-Esa excepción está documentada en [[EstadoYViewModels]].
+La pantalla principal ya no recibe repositorios: las completiones llegan por
+`GetCompletionsForDateUseCase` y `HomeViewModel`. La única excepción que queda es la de
+`HabitFormScreen`.
 
 ### Cómo añadir una funcionalidad
 
@@ -182,7 +195,7 @@ Para evitar buscar lo que no existe:
 
 ### Mejoras recomendadas (no decididas)
 
-- **Cerrar la fuga de capas:** mover la consulta de completiones de `HomeScreen` a un caso de uso (p. ej. `GetCompletionsForDateUseCase`) y la carga de hábito de `HabitFormScreen` al `HabitDetailViewModel`. Eliminaría dos parámetros de repositorio de la capa de presentación.
+- **Cerrar la fuga de capas que queda:** mover la carga del hábito de `HabitFormScreen` al `HabitDetailViewModel` (o a un caso de uso), eliminando el último parámetro de repositorio de la capa de presentación.
 - **Añadir `SavedStateHandle` a los ViewModel** para sobrevivir a la muerte del proceso sin depender de un `initialize()` previo. Resolvería BUG-004 de raíz.
 - **Acotar el alcance de los ViewModel.** `habitDetailViewModel` y `habitFormViewModel` se crean en el `Activity` y se comparten entre destinos; ver [[Navegacion]].
 

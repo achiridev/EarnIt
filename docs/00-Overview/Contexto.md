@@ -24,7 +24,9 @@ Para los objetivos de producto ver [[Objetivos]]. Para el estado de implementaci
 
 EarnIt es un **registrador de hábitos**：el usuario crea hábitos, los ve listados cada día y los marca como completados o no. Cada día, un hábito completado genera un registro (`HabitCompletion`) que alimenta un historial por hábito.
 
-El ciclo completo está implementado: crear → marcar → ver historial → editar → archivar.
+La pantalla principal incluye un **calendario**: una tira semanal siempre visible y una vista mensual expandible. Desde ella se puede consultar y marcar cualquier día **hasta hoy**; los futuros no son seleccionables. El detalle también opera sobre el día elegido y ofrece "Volver a hoy".
+
+El ciclo completo está implementado: crear → elegir día → marcar → ver historial → editar → archivar.
 
 ### Modelo de dominio
 
@@ -69,8 +71,8 @@ Todos los datos de esta tabla salen de `gradle/libs.versions.toml` y `app/build.
 | Navigation Compose | 2.8.4 | Sí — `AppNavHost` |
 | Coroutines | 1.8.1 | Sí |
 | `javax.inject` | 1 | **Anotación decorativa**: se aplica `@Inject` pero ningún procesador la consume (ver [[ADR-0001]]) |
-| JUnit 4 | 4.13.2 | Sí (un test) |
-| `kotlinx-coroutines-test` | 1.8.1 | **Declarada, sin usar** (ver [[Testing]]) |
+| JUnit 4 | 4.13.2 | Sí (5 archivos, 20 tests) |
+| `kotlinx-coroutines-test` | 1.8.1 | **Sí**, en `HabitFormViewModelTest` y `HomeViewModelTest` |
 | Mockito | 5.18.0 | **Declarada, sin usar** |
 | Turbine | 1.0.0 | **Declarada, sin usar** |
 | Robolectric | 4.11 | **Declarada, sin usar** |
@@ -78,7 +80,7 @@ Todos los datos de esta tabla salen de `gradle/libs.versions.toml` y `app/build.
 | `room-testing` | 2.7.2 | **Declarada, sin usar** |
 
 > [!warning] Dependencias declaradas ≠ funcionalidades
-> Cinco dependencias de testing están en el `classpath` pero **ningún test las usa**. Estar en `build.gradle.kts` no significa que la capacidad exista.
+> Cuatro dependencias de testing están en el `classpath` pero **ningún test las usa**: Mockito, Turbine, Robolectric y `room-testing`. Estar en `build.gradle.kts` no significa que la capacidad exista.
 
 ### Valores de configuración de la app
 
@@ -87,7 +89,7 @@ Extraídos de `app/build.gradle.kts` y `AndroidManifest.xml`:
 | Propiedad | Valor | Nota |
 |---|---|---|
 | `namespace` / `applicationId` | `com.example.earnit` | **Namespace de ejemplo**, no uno de producción |
-| `versionCode` / `versionName` | `1` / `"1.0"` | |
+| `versionCode` / `versionName` | `2` / `"2.0.0"` | SemVer; ver [[Android]] |
 | `minSdk` | **26** (Android 8.0) | Permite `java.time` nativo, sin desugaring |
 | `targetSdk` / `compileSdk` | **37** | |
 | `jvmTarget` | **JVM 11** | Coherente con `sourceCompatibility`/`targetCompatibility` |
@@ -105,15 +107,15 @@ app/src/main/java/com/example/earnit/
 ├── core/
 │   ├── di/                      AppContainer + ViewModelFactories (DI manual)
 │   ├── navigation/              AppNavHost (grafo de navegación)
-│   ├── ui/components/           HabitItem, IconPicker, ColorPicker, IconHelper
-│   └── util/                    DateProvider, RealDateProvider, DateConverter
+│   ├── ui/components/           HabitItem, HabitCalendar, AppVersionButton, IconPicker, ColorPicker, IconHelper
+│   └── util/                    DateProvider, RealDateProvider, DateConverter, CalendarDates
 ├── data/
 │   ├── local/{dao,database,entity}   capa Room
 │   └── repository/              implementaciones de los repositorios
 ├── domain/
 │   ├── model/                   Habit, HabitCompletion, Frequency, HabitStatus
 │   ├── repository/              interfaces
-│   └── usecase/                 6 casos de uso
+│   └── usecase/                 7 casos de uso
 ├── feature/
 │   ├── home/                    HomeScreen + HomeViewModel
 │   └── habit/                   HabitDetail* y HabitForm*
@@ -132,7 +134,7 @@ La UI está **en español y hardcodeada en el código Kotlin**. El único recurs
 </resources>
 ```
 
-Cadenas como `"Hábitos"`, `"Nuevo hábito"`, `"Historial"`, `"Guardar"` o `"No hay hábitos hoy"` están escritas directamente en los Composables. **No hay soporte de localización** y añadir un idioma exigiría externalizar todas esas cadenas. Ver [[UI]].
+Cadenas como `"Hábitos"`, `"Nuevo hábito"`, `"Historial"`, `"Guardar"` o `"No hay hábitos hoy"` están escritas directamente en los Composables. **No hay soporte de localización** y añadir un idioma exigiría externalizar todas esas cadenas. Ver [[UI]]. El botón de versión de la `TopAppBar` lee `versionName` del `PackageManager` (`2.0.0`), no de `BuildConfig`.
 
 ## Pendientes
 

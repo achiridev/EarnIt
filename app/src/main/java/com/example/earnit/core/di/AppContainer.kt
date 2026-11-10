@@ -10,6 +10,7 @@ import com.example.earnit.domain.repository.HabitCompletionRepository
 import com.example.earnit.domain.repository.HabitRepository
 import com.example.earnit.domain.usecase.ArchiveHabitUseCase
 import com.example.earnit.domain.usecase.CreateHabitUseCase
+import com.example.earnit.domain.usecase.GetCompletionsForDateUseCase
 import com.example.earnit.domain.usecase.GetHabitHistoryUseCase
 import com.example.earnit.domain.usecase.GetTodaysHabitsUseCase
 import com.example.earnit.domain.usecase.ToggleCompletionUseCase
@@ -27,6 +28,7 @@ class AppContainer(private val context: Context) {
 
     // Domain - Use Cases
     val getTodaysHabitsUseCase = GetTodaysHabitsUseCase(habitRepository, dateProvider)
+    val getCompletionsForDateUseCase = GetCompletionsForDateUseCase(habitCompletionRepository)
     val createHabitUseCase = CreateHabitUseCase(habitRepository)
     val updateHabitUseCase = UpdateHabitUseCase(habitRepository)
     val archiveHabitUseCase = ArchiveHabitUseCase(habitRepository)

@@ -10,7 +10,7 @@ Para los objetivos del producto ver [[Objetivos]].
 
 | Categoría | Recuento |
 |---|---|
-| Implementado | 6 funcionalidades |
+| Implementado | 8 funcionalidades |
 | En desarrollo | 0 (sin trabajo a medias verificable) |
 | Planificado | 0 declarado en el repositorio |
 | Fuera de alcance | 9 capacidades ausentes |
@@ -24,18 +24,20 @@ Cada punto corresponde a código funcionando, con su punto de entrada exacto.
 | Funcionalidad | Dónde vive | Notas |
 |---|---|---|
 | **Crear hábito** | `HabitFormScreen` + `CreateHabitUseCase` | Se abre desde el FAB "Nuevo hábito" de [[Contexto#Información encontrada\|HomeScreen]]. Valida que el nombre no esté vacío. |
-| **Listar hábitos activos del día** | `HomeScreen` + `HomeViewModel` + `GetTodaysHabitsUseCase` | `StateFlow` con `SharingStarted.WhileSubscribed(5_000)`. Filtra `status = 'ACTIVE'`, ordenados por `createdAt DESC`. |
-| **Marcar / desmarcar un día** | `HabitItem.onToggle` → `ToggleCompletionUseCase` | Lógica de alternancia en `ToggleCompletionUseCase.invoke()`: `existing?.completed != true`. |
-| **Ver detalle e historial** | `HabitDetailScreen` + `HabitDetailViewModel` + `GetHabitHistoryUseCase` | Lista todos los registros del hábito ordenados por fecha descendente. |
-| **Editar hábito** | `HabitFormScreen` (modo edición) + `UpdateHabitUseCase` | ⚠️ **Parcialmente correcto**: Editing reinicia `createdAt` y reactiva hábitos archivados. Ver BUG-002 en [[Bugs]]. |
+| **Listar hábitos activos del día** | `HomeScreen` + `HomeViewModel` + `GetTodaysHabitsUseCase` | `StateFlow` con `SharingStarted.WhileSubscribed(5_000)`. Filtra `status = 'ACTIVE'`, ordenados por `createdAt DESC`, y oculta los hábitos creados después del día consultado. |
+| **Calendario y selección de día** | `HabitCalendar` + `CalendarDates` + `HomeViewModel` | Tira semanal siempre visible y mes expandible. Solo se seleccionan días hasta hoy; las flechas cambian semana o mes. |
+| **Marcar / desmarcar un día** | `HabitItem.onToggle` → `ToggleCompletionUseCase` | Lógica de alternancia en `ToggleCompletionUseCase.invoke()`: `existing?.completed != true`. Opera sobre el día seleccionado. |
+| **Ver detalle e historial** | `HabitDetailScreen` + `HabitDetailViewModel` + `GetHabitHistoryUseCase` | Lista todos los registros del hábito ordenados por fecha descendente. El detalle muestra el día elegido y ofrece "Volver a hoy". |
+| **Editar hábito** | `HabitFormScreen` (modo edición) + `UpdateHabitUseCase` | Conserva `createdAt` y `status` al guardar (BUG-002 corregido). |
 | **Archivar hábito** | Botón de archivo en `HabitDetailScreen` → `ArchiveHabitUseCase` | Persiste `HabitStatus.ARCHIVED` y saca el hábito de la lista principal. ⚠️ **Irreversible desde la UI**. |
+| **Ver la versión de la app** | `AppVersionButton` en la `TopAppBar` de `HomeScreen` | Lee `versionName` del `PackageManager` y lo muestra en un diálogo "Acerca de EarnIt". |
 
 ### En desarrollo
 
 **Ninguno.** No hay functionality a medio implementar en el árbol de trabajo: los cuatro únicos `TODO` del proyecto están en `HabitRepositoryImpl.kt:38` (`TODO(frequency)`) y en `data_extraction_rules.xml:8` (comentario de plantilla de Android Studio, sin efecto funcional).
 
 > [!info]
-> El árbol de trabajo contiene cambios sin confirmar respecto al commit `949839a` (corrección de zona horaria en el manejo de fechas, altura fija del grid de iconos y un test de regresión asociado). Esos cambios **ya están integrados** en el código que describe este documento; esta nota solo explica por qué el estado del repositorio puede diferir del último commit.
+> El árbol de trabajo contiene los cambios sin confirmar de la funcionalidad de calendario (rama `feature/calendario-habitos`). Esos cambios **ya están integrados** en el código que describe este documento; esta nota solo explica por qué el estado del repositorio puede diferir del último commit.
 
 ### Planificado
 
@@ -72,14 +74,9 @@ Este listado recoge **lo que el propio código declara pendiente o lo que la lec
 | # | Pendiente | Evidencia |
 |---|---|---|
 | 1 | Implementar el filtrado por frecuencia | `TODO(frequency)` en `HabitRepositoryImpl.kt:38` |
-| 2 | Corregir la pérdida de `createdAt` y `status` al editar | BUG-002 en [[Bugs]] |
-| 3 | Conectar el botón "volver" de la pantalla de detalle | `HabitDetailScreen.kt:73` — el `onClick` está vacío |
-| 4 | Cancelar los colectores de historial anteriores | `HabitDetailViewModel.observeHistory()` |
-| 5 | Hacer que la pantalla de detalle sobreviva a la muerte del proceso | `_habit` es un campo normal, no estado observable |
-| 6 | Refrescar la fecha al cruzar medianoche en la pantalla principal | `HomeScreen.kt:61,64` |
-| 7 | Decidir si `assembleRelease` debe funcionar | Faltan `proguard-rules.pro` y `signingConfig` (BUG-007, BUG-008) |
-| 8 | Eliminar código muerto | 4 métodos de DAO, 3 de repositorio y varios imports sin uso (BUG-009) |
-| 9 | Sustituir la salida con código 1 de `connectedAndroidTest` con un segundo dispositivo conectado | BUG-006 en [[Bugs]] |
+| 2 | Decidir si `assembleRelease` debe funcionar | Faltan `proguard-rules.pro` y `signingConfig` (BUG-007, BUG-008) |
+| 3 | Eliminar código muerto | 4 métodos de DAO, 3 de repositorio y varios imports sin uso (BUG-009) |
+| 4 | Sustituir la salida con código 1 de `connectedAndroidTest` con un segundo dispositivo conectado | BUG-006 en [[Bugs]] |
 
 ### Mejoras recomendadas (no decididas)
 

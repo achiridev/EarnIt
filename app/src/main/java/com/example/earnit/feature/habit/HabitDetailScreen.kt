@@ -13,27 +13,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,9 +43,7 @@ import com.example.earnit.core.ui.components.getIcon
 import com.example.earnit.domain.model.Habit
 import com.example.earnit.domain.model.HabitCompletion
 import com.example.earnit.domain.repository.HabitRepository
-import com.example.earnit.ui.theme.EarnItTheme
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,19 +55,22 @@ fun HabitDetailScreen(
     onBack: () -> Unit,
     onEdit: (Habit) -> Unit,
     onArchive: () -> Unit,
-    onToggleCompletion: (LocalDate) -> Unit
+    onToggleCompletion: () -> Unit
 ) {
     val habit by viewModel.habit.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
-    val today = LocalDate.now()
-    val isCompletedToday = history.any { it.date == today && it.completed }
+    val date by viewModel.date.collectAsStateWithLifecycle()
+    val today by viewModel.today.collectAsStateWithLifecycle()
+    val selectedDate = date ?: today
+    val isCompleted = history.any { it.date == selectedDate && it.completed }
 
     // Relee el hábito por id, igual que hace `HabitFormScreen`. Sin esto el detalle
     // depende de que `AppNavHost` haya llamado a `initialize()` antes de navegar, así
     // que al restaurar el back stack directamente en `habit_detail/{id}` la pantalla
     // queda vacía, y tras editar muestra los datos antiguos (BUG-004).
     LaunchedEffect(habitId) {
-        habitRepository?.getById(habitId)?.let { viewModel.initialize(it, today) }
+        val dateToRestore = viewModel.date.value ?: today
+        habitRepository?.getById(habitId)?.let { viewModel.initialize(it, dateToRestore) }
     }
 
     Scaffold(
@@ -102,20 +101,20 @@ fun HabitDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .fillMaxWidth()
-            ,
+                .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Habit header card
             habit?.let { h ->
                 HabitHeaderCard(
                     habit = h,
-                    isCompleted = isCompletedToday,
-                    onToggle = { onToggleCompletion(LocalDate.now()) }
+                    date = selectedDate,
+                    today = today,
+                    isCompleted = isCompleted,
+                    onToggle = onToggleCompletion,
+                    onGoToToday = viewModel::goToToday
                 )
             }
 
-            // History
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             ) {
@@ -137,8 +136,11 @@ fun HabitDetailScreen(
 @Composable
 fun HabitHeaderCard(
     habit: Habit,
+    date: LocalDate,
+    today: LocalDate,
     isCompleted: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onGoToToday: () -> Unit
 ) {
     val themeColor = Color(habit.color)
     // El fondo usa el color puro; icono y texto, la variante de acento, para que
@@ -160,7 +162,6 @@ fun HabitHeaderCard(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Icon
             Box(
                 modifier = Modifier.size(80.dp),
                 contentAlignment = Alignment.Center
@@ -189,6 +190,13 @@ fun HabitHeaderCard(
                 )
             }
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = if (date == today) "Hoy" else fullDateLabel(date),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -202,7 +210,7 @@ fun HabitHeaderCard(
                     )
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Completado hoy",
+                        text = "Completado",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = accentColor
@@ -215,8 +223,22 @@ fun HabitHeaderCard(
                     )
                 }
             }
+            if (date != today) {
+                TextButton(onClick = onGoToToday) {
+                    Text("Volver a hoy")
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun fullDateLabel(date: LocalDate): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val dayName = date.dayOfWeek.getDisplayName(TextStyle.FULL, locale)
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+    val monthName = date.month.getDisplayName(TextStyle.FULL, locale)
+    return "$dayName, ${date.dayOfMonth} de $monthName"
 }
 
 @Composable

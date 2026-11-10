@@ -19,7 +19,7 @@ Estos objetivos se deducen del comportamiento que el código ya ofrece, no de do
 1. **Permitir definir hábitos con una identidad visual reconocible.** Cada hábito tiene nombre, descripción opcional, icono y color propios, elegibles desde el formulario. Es lo que hace `HabitFormScreen` con `IconPicker` y `ColorPicker`.
 2. **Ofrecer una acción de marcado inmediato y de baja fricción.** Desde la pantalla principal, un toque sobre el indicador circular del hábito lo marca o desmarca sin abrir la pantalla de detalle. Es el `onToggle` de `HabitItem`.
 3. **Conservar un historial por hábito.** `HabitDetailScreen` lista los registros ordenados del más reciente al más antiguo.
-4. **Mantener el foco en el día actual.** La pantalla principal opera sobre `LocalDate.now()` y muestra únicamente hábitos `ACTIVE`.
+4. **Permitir consultar y marcar días pasados, con foco por defecto en el día actual.** La pantalla principal arranca en "hoy" (`DateProvider`) y ofrece un calendario semanal/mensual para elegir cualquier día hasta hoy; los futuros no son seleccionables. Muestra únicamente hábitos `ACTIVE` creados en o antes del día consultado.
 
 ### Objetivos técnicos verificables
 
