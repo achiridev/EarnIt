@@ -48,6 +48,9 @@ Each one has broken the build before. The reasoning lives in
 - **`Entity` ↔ model conversions are explicit** (`toEntity()` / `toDomain()` private in
   the repositories). Do not add logic to DAOs or implicit conversions.
 - **Keep Turbine at `1.0.0`**: `1.0.1` does not exist on Maven Central.
+- **Version with SemVer.** `versionName` is `MAJOR.MINOR.PATCH`: `PATCH` for fixes,
+  `MINOR` for compatible features, `MAJOR` for incompatible changes. Bump `versionCode`
+  by one on **every** change, in the same edit as the work.
 - **`local.properties` is git-ignored.** Do not edit it or let it reach the repo.
 
 ## 4. How to work

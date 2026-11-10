@@ -10,36 +10,46 @@ Para el flujo entre capas ver [[Arquitectura]]. Para el grafo de navegación ver
 
 | ViewModel | Estado propio | Ámbito real |
 |---|---|---|
-| `HomeViewModel` | `StateFlow<List<Habit>>` | Compartido, pero solo lo usa una pantalla |
+| `HomeViewModel` | `StateFlow<List<Habit>>` + `StateFlow<List<HabitCompletion>>` + `today`/`selectedDate` | Compartido, pero solo lo usa una pantalla |
 | `HabitFormViewModel` | 7 `StateFlow` independientes + `isValid` derivado | **Compartido entre `add_habit` y `edit_habit`** |
-| `HabitDetailViewModel` | `StateFlow<List<HabitCompletion>>` + `StateFlow<Habit?>` + un `var _date` | **Compartido entre destinos de detalle** |
+| `HabitDetailViewModel` | `StateFlow<List<HabitCompletion>>` + `StateFlow<Habit?>` + `date`/`today` | **Compartido entre destinos de detalle** |
 
 Ninguno de los tres recibe `SavedStateHandle`.
 
 ## Información encontrada
 
-### `HomeViewModel` — el único bien resuelto
+### `HomeViewModel` — estado por fecha y sin fuga de repositorio
 
-`feature/home/HomeViewModel.kt` completo:
+`feature/home/HomeViewModel.kt`:
 
 ```kotlin
-class HomeViewModel(getTodaysHabitsUseCase: GetTodaysHabitsUseCase) : ViewModel() {
-    val habits: StateFlow<List<Habit>> = getTodaysHabitsUseCase()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
-        )
-}
+private val _today = MutableStateFlow(dateProvider.today())
+private val _selectedDate = MutableStateFlow(dateProvider.today())
+private val activeHabits = getTodaysHabitsUseCase()
+
+val habits = combine(activeHabits, _selectedDate) { habits, date ->
+    habits.filter { !it.createdAt.isAfter(date) }
+}.stateIn(viewModelScope, WhileSubscribed(5_000), emptyList())
+
+val completions = _selectedDate
+    .flatMapLatest { date -> getCompletionsForDateUseCase(date) }
+    .stateIn(viewModelScope, WhileSubscribed(5_000), emptyList())
 ```
 
-Es el patrón correcto y sin slotted ningún problema:
-
-- El `Flow` del repositorio se comparte mediante `stateIn`, no se recolecta de nuevo en cada recomposición.
-- `WhileSubscribed(5_000)` mantiene la suscripción 5 segundos tras la última pantalla: sobrevive a rotaciones sin desperdiciar recursos.
-- `initialValue = emptyList()` evita que la primera composición muestre `null`.
-
-**No expone ninguna acción**: todo el comportamiento pasa por los lambdas que `AppNavHost` inyecta en la pantalla. `HomeScreen` recibe `habitsFlow`, no el ViewModel.
+- **La fecha manda.** `today` y `selectedDate` son estado observable resuelto con
+  `DateProvider`; la pantalla ya no calcula `LocalDate.now()` ni memoriza un `Flow` sin
+  claves (BUG-005).
+- **Los hábitos se filtran por `createdAt`.** `GetTodaysHabitsUseCase` devuelve los
+  activos porque la frecuencia es solo `DAILY`; el filtro por fecha de creación evita que
+  un hábito aparezca en un día anterior a su existencia.
+- **Las completiones siguen al día seleccionado** con `flatMapLatest`: al cambiar de
+  fecha se cancela el colector anterior y se suscribe el nuevo.
+- **La UI recibe flujos, no repositorios.** `GetCompletionsForDateUseCase` cierra la
+  fuga de capas que tenía `HomeScreen`.
+- **Acciones:** `selectDate(date)` ignora fechas futuras, `goToToday()` vuelve al día
+  actual y `refreshToday()` relee el reloj (al reanudar y al cruzar medianoche).
+- `WhileSubscribed(5_000)` mantiene la suscripción 5 segundos tras la última pantalla e
+  `initialValue = emptyList()` evita que la primera composición muestre `null`.
 
 ### `HabitFormViewModel` — siete `StateFlow` sueltos y uno derivado
 
@@ -120,17 +130,23 @@ val isValid: StateFlow<Boolean> = _name
 
 ```kotlin
 private val _habit = MutableStateFlow<Habit?>(null)   // ← observable
-private var _date: LocalDate? = null                 // ← sigue siendo un var
+private val _date = MutableStateFlow<LocalDate?>(null)
+private val _today = MutableStateFlow(dateProvider.today())
 private val _history = MutableStateFlow<List<HabitCompletion>>(emptyList())
 private var historyJob: Job? = null                  // ← BUG-003
 
 val habit: StateFlow<Habit?> = _habit
 val history: StateFlow<List<HabitCompletion>> = _history
+val date: StateFlow<LocalDate?> = _date
+val today: StateFlow<LocalDate> = _today
 ```
 
 **`_habit` pasó a ser observable.** Antes era un `var` normal rellenado por `initialize()`, y `getHabit()` lo devolvía tal cual: Compose no se enteraba de los cambios (BUG-004). La pantalla ahora lo recolecta con `collectAsStateWithLifecycle()`.
 
-**`_date` sigue siendo un `var` normal**, porque solo lo consume `toggleCompletion()`, que es `suspend` y se invoca desde el NavHost: no hay ninguna lectura en composición que lo disparase.
+**`_date` y `_today` también son `StateFlow`.** El detalle muestra y alterna el día que
+viene del calendario de la pantalla principal, y necesita distinguirlo de "hoy" para
+pintar la etiqueta correcta y ofrecer "Volver a hoy". `goToToday()` actualiza ambos con
+`DateProvider`; ya no hay dos referencias al día que puedan divergir (BUG-005).
 
 **El colector de historial ya no se acumula.** `observeHistory()` cancela el trabajo anterior:
 
@@ -157,14 +173,17 @@ Además, `HabitDetailScreen` relee el hábito por id en un `LaunchedEffect(habit
 **Los métodos `suspend` son para el NavHost, no para la pantalla.** `toggleCompletion()` y `archive()` son `suspend` porque `AppNavHost` los invoca desde su propio `rememberCoroutineScope()`:
 
 ```kotlin
-onToggleCompletion = { date -> scope.launch { habitDetailViewModel.toggleCompletion() } }
+onToggleCompletion = { scope.launch { habitDetailViewModel.toggleCompletion() } }
 onArchive = { scope.launch { habitDetailViewModel.archive() }; navController.popBackStack() }
 ```
 
-> [!note] El parámetro `date` de `onToggleCompletion` se descarta
-> `HabitDetailScreen` declara `onToggleCompletion: (LocalDate) -> Unit` y lo llama con `LocalDate.now()`. Pero `AppNavHost` **ignora ese parámetro**: llama a `habitDetailViewModel.toggleCompletion()`, que usa el `_date` fijado en `initialize()`. El parámetro existe en la firma y no tiene efecto.
+> [!note] La pantalla de detalle toma el día del ViewModel
+> `HabitDetailScreen` recolecta `date` y `today` del ViewModel y calcula el estado del día con
+> `history.any { it.date == selectedDate && it.completed }`. Ya no recibe un `LocalDate` como
+> parámetro ni descarta la fecha: `onToggleCompletion` no lleva argumentos y `toggleCompletion()`
+> usa el `_date` fijado por `initialize()` o por `goToToday()`.
 
-`isCompletedForDate(date)` (línea 53) es un método público que **nadie llama** — ver BUG-009.
+`isCompletedForDate(date)` es un método público que **nadie llama** — ver BUG-009.
 
 ### Coroutines y su alcance en la app
 
@@ -172,7 +191,6 @@ onArchive = { scope.launch { habitDetailViewModel.archive() }; navController.pop
 |---|---|---|
 | `viewModelScope` | Automático en los ViewModel | `HomeViewModel.stateIn`, `observeHistory` |
 | `rememberCoroutineScope()` | `AppNavHost` | Lanzar escrituras desde los callbacks de navegación |
-| `rememberCoroutineScope()` | `HomeScreen` | Creado en la línea 71 pero **nunca usado** |
 | `rememberCoroutineScope()` | `HabitFormScreen` | `scope.launch { viewModel.save(); onSave() }` |
 
 Patrón consistente y correcto: **los Composables nunca llaman a un caso de uso `suspend` directamente**; lo hacen dentro de `scope.launch`, y la actualización de UI llega por el `Flow` de Room.
@@ -192,23 +210,28 @@ val habits by habitsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 > [!warning] Los parámetros `initialValue = emptyList()` ocultan el estado de carga
 > No hay estado de carga ni de error en ninguna parte de la app. Cuando la base de datos aún no ha emitido, las pantallas dibujan la lista vacía, que es **visualmente indistinguible** de "no tienes hábitos". Afecta a `HomeScreen` (lista) y a `HabitDetailScreen` (historial).
 
-### Doble carga de datos en `HomeScreen`
+### Dos fuentes de datos en `HomeScreen`, ambas desde el ViewModel
 
-`HomeScreen` combina **dos fuentes distintas** para construir una sola vista:
+`HomeScreen` combina dos flujos que ahora pertenecen al ViewModel:
 
 ```kotlin
-val habits by habitsFlow.collectAsStateWithLifecycle(initialValue = emptyList())     // del ViewModel
-val completionsFlow = remember { completionRepository.getForDate(today) }          // del repositorio
+val habits by habitsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
 val completions by completionsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+val selectedDate by selectedDateFlow.collectAsStateWithLifecycle()
+val today by todayFlow.collectAsStateWithLifecycle()
 val completedHabitIds = remember(completions) {
     completions.filter { it.completed }.map { it.habitId }.toSet()
 }
 ```
 
-Dos consecuencias:
+**La fuga de capas está cerrada:** la pantalla ya no recibe `HabitCompletionRepository`;
+`AppNavHost` no lo pasa y `HomeScreen` no importa nada de `domain.repository`. Las
+completiones llegan por `HomeViewModel.completions`, alimentado por
+`GetCompletionsForDateUseCase`.
 
-1. **Fuga de capas:** la pantalla recibe `HabitCompletionRepository` —una interfaz de `domain/repository/`— directamente como parámetro, desde `AppNavHost`. Es la excepción documentada en [[Arquitectura]].
-2. **La fecha se congela:** `today` se calcula con `LocalDate.now()` y `remember { … }` no tiene claves. Si la app queda abierta al cruzar medianoche, sigue consultando el día anterior y los toggles se escriben con la fecha obsoleta. Es el BUG-005 de [[Bugs]].
+**La fecha ya no se congela:** `today` es un `StateFlow` del ViewModel y la pantalla pide
+`onRefreshToday()` al reanudarse y en un ticker hasta medianoche. El toggle escribe con la
+fecha seleccionada, no con una copia obsoleta (BUG-005, corregido).
 
 ## Pendientes
 
@@ -216,21 +239,16 @@ Dos consecuencias:
 
 | # | Pendiente | Ubicación |
 |---|---|---|
-| 1 | Fecha congelada en la pantalla principal (BUG-005) | `HomeScreen.kt:61,64` |
-| 2 | Doble carga del hábito en modo edición (BUG-010) | `AppNavHost.kt:76` + `HabitFormScreen.kt:67` |
-| 3 | `onToggleCompletion(date)` recibe un parámetro que se ignora | `AppNavHost.kt:83-85` |
-| 4 | `isCompletedForDate()` nunca se usa | `HabitDetailViewModel.kt:53` |
-| 5 | `scope` y `snackbarHostState` creados y no usados | `HomeScreen.kt:70-71` |
-| 6 | Sin estado de carga ni de error en ninguna pantalla | Las 3 pantallas |
-| 7 | Ningún ViewModel recibe `SavedStateHandle`; `initialize()` sigue siendo obligatorio | `HabitDetailViewModel.kt` |
+| 1 | Doble carga del hábito en modo edición (BUG-010) | `AppNavHost.kt:76` + `HabitFormScreen.kt:67` |
+| 2 | `isCompletedForDate()` nunca se usa | `HabitDetailViewModel.kt` |
+| 3 | Sin estado de carga ni de error en ninguna pantalla | Las 3 pantallas |
+| 4 | Ningún ViewModel recibe `SavedStateHandle`; `initialize()` sigue siendo obligatorio | `HabitDetailViewModel.kt` |
 
 ### Mejoras recomendadas (no decididas)
 
 - **Modelar el estado de la pantalla principal con una sealed interface** (`Loading` / `Success` / `Empty` / `Error`) en lugar de `emptyList()` como valor inicial. Es lo que permitiría distinguir "cargando" de "sin hábitos" sin cambiar la UI.
-- **Usar `flatMapLatest` o guardar el `Job` del colector** en `observeHistory()` para cancelar el colector anterior. `flatMapLatest` resuelve BUG-003 en dos líneas.
 - **Un único `StateFlow` con un `data class`** en lugar de siete `StateFlow` en `HabitFormViewModel`. Menos recolectores y una imagen consistente del formulario.
-- **Añadir `SavedStateHandle`** a los ViewModel y navegar solo con el `habitId`, eliminando `initialize()` y el parámetro `habit` del callback. Simplifica `AppNavHost`: hoy sigue siendo obligatorio porque `_date` se fija ahí.
-- **Extraer `GetCompletionsForDateUseCase`** para que `HomeScreen` deje de recibir un repositorio (cierra la fuga de capas).
+- **Añadir `SavedStateHandle`** a los ViewModel y navegar solo con el `habitId`, eliminando `initialize()` y el parámetro `habit` del callback.
 
 ## Preguntas abiertas
 

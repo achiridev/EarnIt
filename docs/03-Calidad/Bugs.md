@@ -16,7 +16,7 @@ Registrar **fallos confirmados y verificables** del proyecto, con evidencia conc
 | 🟡 Medio (degradación o incoherencia) | 3 |
 | 🔵 Configuración / documentación | 7 |
 
-**Total: 15 incidencias registradas.** Cinco corregidas: BUG-001, BUG-002, BUG-003, BUG-004 y BUG-014.
+**Total: 15 incidencias registradas.** Seis corregidas: BUG-001, BUG-002, BUG-003, BUG-004, BUG-005 y BUG-014.
 
 ## Información encontrada
 
@@ -291,8 +291,8 @@ Leer el hábito por `habitId` dentro del detalle (igual que hace el formulario) 
 | Campo | Valor |
 |---|---|
 | **Severidad** | 🟡 Medio |
-| **Estado** | Confirmado por lectura de código |
-| **Ubicación** | `app/src/main/java/com/example/earnit/feature/home/HomeScreen.kt:61,64` |
+| **Estado** | **Corregido** |
+| **Ubicación** | `app/src/main/java/com/example/earnit/feature/home/HomeViewModel.kt` |
 
 **Descripción**
 
@@ -327,7 +327,19 @@ Además, `HomeScreen` y `HabitDetailScreen` llaman a `LocalDate.now()` directame
 
 **Solución**
 
-Usar `DateProvider` y un `remember` con `today` como clave, o exponer la fecha actual como `StateFlow` desde el ViewModel.
+Implementada: la fecha ya no vive en la pantalla. `HomeViewModel` expone `today` y
+`selectedDate` como `StateFlow`, resueltos con `DateProvider` (`RealDateProvider`).
+`HomeScreen` recibe esos flujos y llama a `onRefreshToday()`:
+
+- al reanudar la pantalla (`LifecycleEventEffect(ON_RESUME)`), y
+- con un ticker que espera hasta la próxima medianoche (`LaunchedEffect` + `delay`).
+
+`refreshToday()` avanza `today` y, si el usuario estaba viendo "hoy", mueve también la
+selección; si estaba consultando un día pasado, la respeta. `HabitDetailViewModel` hace
+lo mismo: `today` es un `StateFlow` y `_date` un `StateFlow` alimentados por
+`DateProvider`, así que el detalle y la pantalla principal no pueden divergir.
+
+Cubierto por `HomeViewModelTest.refreshToday_advancesTheSelectionOnlyIfItWasShowingToday`.
 
 ---
 
@@ -470,7 +482,7 @@ Hay miembros públicos que nadie invoca e importaciones que no se usan. Lint **n
 | `HabitCompletionDao.getForHabitList()` | `HabitCompletionDao.kt:26` | Nadie |
 | `HabitRepository.delete()` | `HabitRepository.kt:9` | Nadie (sin UI) |
 | `HabitCompletionRepository.delete()` | `HabitCompletionRepository.kt:11` | Nadie (sin UI) |
-| `HabitDetailViewModel.isCompletedForDate()` | `HabitDetailViewModel.kt:53` | Nadie |
+| `HabitDetailViewModel.isCompletedForDate()` | `HabitDetailViewModel.kt` | Nadie |
 
 **Importaciones sin usar**
 

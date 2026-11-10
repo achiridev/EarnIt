@@ -122,9 +122,8 @@ Scaffold
 ├── topBar = TopAppBar
 │     ├── title (FontWeight.Medium)
 │     ├── navigationIcon (flecha atrás)   ← solo en detalle y formulario
-│     ├── actions (editar / archivar / guardar)
+│     ├── actions (versión / editar / archivar / guardar)
 │     └── colors = surfaceContainerLow
-├── snackbarHost                            ← solo en HomeScreen, y nunca se usa
 └── contenido con Modifier.padding(innerPadding)
 ```
 
@@ -132,13 +131,25 @@ Definiciones concretas:
 
 | Pantalla | `TopAppBar` | Acciones | Contenido |
 |---|---|---|---|
-| `HomeScreen` | Título "Hábitos" | — | `Column` + `LazyColumn`, o `EmptyState` |
+| `HomeScreen` | Título "Hábitos" | Botón de versión (`AppVersionButton`) | `HabitCalendar` + etiqueta del día + `LazyColumn`, o `EmptyState` |
 | `HabitDetailScreen` | Título = nombre del hábito | Editar, Archivar | `Column` con `HabitHeaderCard` + `LazyColumn` de historial |
 | `HabitFormScreen` | "Editar hábito" / "Nuevo hábito" | Botón "Guardar" | `Column` con `verticalScroll` |
 
+### Calendario y día seleccionado
+
+`HomeScreen` abre con `HabitCalendar` fijo en la parte superior: tira semanal de siete días
+y un botón que despliega el mes completo. La lista de hábitos y la fecha con la que se
+marca dependen del día seleccionado, no de "hoy" a secas:
+
+- Solo se pueden seleccionar días hasta hoy; los futuros se ven atenuados y no responden.
+- La etiqueta sobre la lista alterna entre "Hoy, 10 de noviembre" y
+  "Martes, 10 de noviembre".
+- Si se consulta un día pasado, el detalle muestra ese día y ofrece "Volver a hoy".
+- Un hábito creado después del día consultado no aparece en esa fecha.
+
 ### Estado vacío
 
-`HomeScreen.kt:126-156` define un `EmptyState` composable privado con icono `TrackChanges` de 64 dp, dos textos explicativos y un botón "Crear hábito". Es el único estado vacío de la app; **las otras dos pantallas no definen ninguno**: si el historial está vacío, la `LazyColumn` simplemente no dibuja nada.
+`HomeScreen.kt` define un `EmptyState` composable privado con icono `TrackChanges` de 64 dp, dos textos explicativos y un botón "Crear hábito". El primer texto cambia según el día ("No hay hábitos hoy" o "No hay hábitos este día"). Es el único estado vacío de la app; **las otras dos pantallas no definen ninguno**: si el historial está vacío, la `LazyColumn` simplemente no dibuja nada.
 
 ### Internacionalización
 
@@ -152,14 +163,16 @@ Inventario de cadenas hardcodeadas (parcial, para dimensionar el trabajo):
 
 | Pantalla | Cadenas |
 |---|---|
-| `HomeScreen` | "Hábitos", "Nuevo hábito", "No hay hábitos hoy", "Añade tu primer hábito para empezar", "Crear hábito" |
-| `HabitDetailScreen` | "Hábito", "Historial", "Completado hoy", "Toca para marcar como completado", "Completado", "Volver", "Editar", "Archivar" |
+| `HomeScreen` | "Hábitos", "Nuevo hábito", "Hoy", "No hay hábitos hoy", "No hay hábitos este día", "Añade tu primer hábito para empezar", "No hay hábitos que existieran en esta fecha", "Crear hábito" |
+| `HabitCalendar` | "Hoy", "Mes anterior", "Semana anterior", "Mes siguiente", "Semana siguiente", "Ver mes", "Ocultar mes" |
+| `HabitDetailScreen` | "Hábito", "Historial", "Completado", "Toca para marcar como completado", "Volver a hoy", "Volver", "Editar", "Archivar" |
 | `HabitFormScreen` | "Editar hábito", "Nuevo hábito", "Volver", "Guardar", "Nombre del hábito", "Descripción (opcional)", "Icono", "Color", "Frecuencia", "Diario", "Seleccionado" |
 | `HabitItem` | "Completed", "Not completed" |
+| `AppVersionButton` | "Acerca de EarnIt", "Versión", "Cerrar" |
 | `IconPicker` | "Selected" |
 | `ColorPicker` | "Personalizado", "Color personalizado", "Aplicar", "Cancelar", "Seleccionado", "Elegir un color personalizado" |
 
-Son **~33 cadenas**. Externalizarlas es trabajo mecánico, no difícil.
+Son **~45 cadenas**. Externalizarlas es trabajo mecánico, no difícil.
 
 > [!warning] Restricción de Lint que conviene conocer
 > El proyecto ya evitó un fallo de compilación por Lint: **no se puede llamar a `Locale.getDefault()` dentro de un `@Composable`** (se dispara `NonObservableLocale`). El patrón correcto ya está aplicado en `HistoryItem` (`HabitDetailScreen.kt:213`):
@@ -179,6 +192,7 @@ Son **~33 cadenas**. Externalizarlas es trabajo mecánico, no difícil.
 | Check del `IconPicker` | `null` |
 | Check del `ColorPicker` | **"Seleccionado"**, en español |
 | Botón de color personalizado | "Elegir un color personalizado" |
+| Botones del calendario | **Correcto**: "Semana anterior", "Semana siguiente", "Ver mes", "Ocultar mes", "Mes anterior", "Mes siguiente" |
 | `HistoryItem` | **"Completado"** en español |
 
 Existe una inconsistencia real de idioma en los `contentDescription`: la app está en español pero dos de ellos siguen en inglés ("Completed" / "Not completed" de `HabitItem`). Registrado como **BUG-013** en [[Bugs]]. El `Check` del `ColorPicker` ya no suma a esa lista: pasó a "Seleccionado" al reescribir el selector.
@@ -193,20 +207,17 @@ Lo que **no** está verificado: la app no se auditó contra WCAG, y el contraste
 
 ### Trabajo pendiente ya identificado en el proyecto
 
-- `HomeScreen.kt:22,70` — se crea un `SnackbarHostState` y un `SnackbarHost`, pero **nunca se muestra ningún Snackbar**. Infraestructura montada y sin usar.
 - `HabitItem.kt:38` — el parámetro `modifier` no es el primer opcional; Lint lo señala (`ModifierParameter`).
-- `HomeScreen.kt:58` — Lint: el parámetro `modifier` opcional debe tener `Modifier` como valor por defecto (`ModifierParameter`).
-- Importaciones sin usar de `EarnItTheme` en `HomeScreen.kt:40`, `HabitDetailScreen.kt:45`, `HabitFormScreen.kt:46` y `HabitItem.kt:18`.
+- Importaciones sin usar de `EarnItTheme` en `HabitFormScreen.kt` y `HabitItem.kt`.
 - Lint: `AndroidManifest.xml:18` — `android:label` redundante.
 
 ### Mejoras recomendadas (no decididas)
 
-- **Externalizar las ~35 cadenas** a `strings.xml` y añadir `values-es/`. Es el requisito previo para cualquier localización.
+- **Externalizar las ~45 cadenas** a `strings.xml` y añadir `values-es/`. Es el requisito previo para cualquier localización.
 - **Traducir los `contentDescription`** "Completed", "Not completed" y "Selected" al español, o mejor, hacerlos resources.
 - **Sustituir los `fontSize`/`fontWeight` inline por estilos de `Typography`**, para que el tema tenga efecto real.
 - **Decidir si se mantiene el color dinámico.** Fija la identidad visual pero hace que la app se vea distinta según el fabricante.
 - **Añadir estados vacíos** a `HabitDetailScreen` (historial vacío) y a `HabitFormScreen`.
-- **Eliminar el `SnackbarHostState` no usado** o implementar realmente los mensajes de confirmación (hoy no hay ningún mensaje tras guardar).
 
 ## Preguntas abiertas
 

@@ -11,6 +11,8 @@ Para el sistema de temas y colores ver [[UI]]. Para el flujo de pantallas ver [[
 | Componente | Ubicación | ¿Reutilizable fuera de `HabitFormScreen`? |
 |---|---|---|
 | `HabitItem` | `core/ui/components/HabitItem.kt` | Sí |
+| `HabitCalendar` | `core/ui/components/HabitCalendar.kt` | Sí |
+| `AppVersionButton` | `core/ui/components/AppVersionButton.kt` | Sí |
 | `IconPicker` | `core/ui/components/IconPicker.kt` | No, hoy solo lo usa el formulario |
 | `ColorPicker` | `core/ui/components/ColorPicker.kt` | No, ídem |
 | `getIcon` | `core/ui/components/IconHelper.kt` | Sí |
@@ -62,6 +64,70 @@ Puntos clave:
 - El componente es **puramente presentacional**: no sabe nada de `Habit`, `LocalDate` ni repositorios. Recibe `icon: ImageVector` ya resuelto y `color: Int` ya convertido. Eso lo hace trivial de previsualizar y probar.
 - El color del hábito se aplica con transparencias: fondo `copy(alpha = 0.12f)` cuando está completado, `colorScheme.surface` cuando no.
 - `onToggle` tiene valor por defecto `{}`, lo que permite usarlo sin acción de marcado.
+
+### `HabitCalendar` — tira semanal y mes expandible
+
+`core/ui/components/HabitCalendar.kt`
+
+```kotlin
+@Composable
+fun HabitCalendar(
+    selectedDate: LocalDate,
+    today: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onGoToToday: () -> Unit,
+    modifier: Modifier = Modifier
+)
+```
+
+Es el calendario de la pantalla principal. **No usa el `DatePicker` de Material**: se
+dibuja con `java.time` y el resultado se valida en el ViewModel.
+
+```text
+Card
+├── Row de cabecera
+│   ├── Column → título "noviembre 2026" (+ TextButton "Hoy" si no se ve hoy)
+│   ├── IconButton ◀   → semana/mes anterior
+│   ├── IconButton ▶   → semana/mes siguiente (deshabilitado en el futuro)
+│   └── IconButton 🗓  → expandir/ocultar el mes
+├── WeekStrip   (por defecto)  → 7 celdas, del primer día de la semana local
+└── MonthGrid   (expandido)    → rejilla de 7 columnas, con celdas vacías
+```
+
+- **La tira semanal está siempre visible**; el botón de la derecha despliega la
+  cuadrícula del mes.
+- El primer día de la semana sale de `WeekFields.of(locale).firstDayOfWeek`, y los
+  nombres de día y mes se formatean con `TextStyle.SHORT`/`FULL` del `Locale` actual.
+- **Los días futuros no son seleccionables** (`enabled = !date.isAfter(today)`), y las
+  flechas de "siguiente" se deshabilitan al llegar a hoy.
+- En vista semanal, las flechas mueven la selección una semana (sin pasarse de hoy); en
+  vista mensual, navegan entre meses y no dejan avanzar más allá del mes actual.
+- `selectedDate` manda: el día seleccionado se pinta en primario; "hoy" lleva borde y
+  contenedor cuando no está seleccionado.
+- Si la selección cambia desde fuera (botón "Hoy"), un `LaunchedEffect` devuelve la vista
+  mensual al mes de la selección.
+- El estado de expansión y el mes visible sobreviven a la recomposición con
+  `rememberSaveable`.
+
+El cálculo de semanas y de la cuadrícula mensual vive aparte, en Kotlin puro:
+`core/util/CalendarDates.kt` (`startOfWeek`, `weekDates`, `monthCells`, `weekDayLabels`).
+Eso permite verificarlo en `./gradlew test` sin dispositivo (`CalendarDatesTest`).
+
+### `AppVersionButton` — versión visible en la app
+
+`core/ui/components/AppVersionButton.kt`
+
+```kotlin
+@Composable
+fun AppVersionButton(modifier: Modifier = Modifier)
+```
+
+`TextButton` que muestra `v<versionName>` y abre un `AlertDialog` "Acerca de EarnIt" con
+la versión y un botón "Cerrar". Se usa en las `actions` de la `TopAppBar` de `HomeScreen`.
+
+La versión se lee con `PackageManager.getPackageInfo(packageName, 0)` dentro de un
+`remember`, **no con `BuildConfig`**: el proyecto no genera `BuildConfig`, y así no hay
+que tocar la configuración de build. Si la lectura falla, muestra `v?`.
 
 ### `IconPicker` — selector de iconos
 
@@ -268,10 +334,12 @@ No están en `core/ui/components/` pero conviene conocerlos:
 
 | Componente | Archivo | Visibilidad | Función |
 |---|---|---|---|
-| `EmptyState` | `HomeScreen.kt:126` | `private` | Estado vacío de la lista de hábitos |
-| `HabitHeaderCard` | `HabitDetailScreen.kt:128` | `public` | Tarjeta superior del detalle, pulsable para marcar |
-| `HistoryItem` | `HabitDetailScreen.kt:210` | `public` | Fila del historial con fecha localizada |
-| `FrequencySelector` | `HabitFormScreen.kt:182` | `public` | Selector de frecuencia (hoy solo `DAILY`) |
+| `EmptyState` | `HomeScreen.kt` | `private` | Estado vacío de la lista, con texto distinto si el día no es hoy |
+| `SelectedDateLabel` | `HomeScreen.kt` | `private` | Etiqueta "Hoy, 10 de noviembre" del día seleccionado |
+| `WeekStrip` / `MonthGrid` / `DayNumber` | `HabitCalendar.kt` | `private` | Piezas internas del calendario |
+| `HabitHeaderCard` | `HabitDetailScreen.kt` | `public` | Tarjeta superior del detalle, pulsable para marcar, con el día y "Volver a hoy" |
+| `HistoryItem` | `HabitDetailScreen.kt` | `public` | Fila del historial con fecha localizada |
+| `FrequencySelector` | `HabitFormScreen.kt` | `public` | Selector de frecuencia (hoy solo `DAILY`) |
 
 Dos detalles de `HistoryItem`:
 

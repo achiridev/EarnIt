@@ -25,7 +25,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private val homeViewModel: HomeViewModel by viewModels {
-        HomeViewModelFactory(appContainer.getTodaysHabitsUseCase)
+        HomeViewModelFactory(
+            appContainer.getTodaysHabitsUseCase,
+            appContainer.getCompletionsForDateUseCase,
+            appContainer.dateProvider
+        )
     }
     private val habitFormViewModel: HabitFormViewModel by viewModels {
         HabitFormViewModelFactory(appContainer.createHabitUseCase, appContainer.updateHabitUseCase)
@@ -34,7 +38,8 @@ class MainActivity : ComponentActivity() {
         HabitDetailViewModelFactory(
             appContainer.toggleCompletionUseCase,
             appContainer.getHabitHistoryUseCase,
-            appContainer.archiveHabitUseCase
+            appContainer.archiveHabitUseCase,
+            appContainer.dateProvider
         )
     }
 
@@ -50,7 +55,6 @@ class MainActivity : ComponentActivity() {
                         habitFormViewModel = habitFormViewModel,
                         habitDetailViewModel = habitDetailViewModel,
                         habitRepository = appContainer.habitRepository,
-                        completionRepository = appContainer.habitCompletionRepository,
                         toggleCompletionUseCase = appContainer.toggleCompletionUseCase
                     )
                 }

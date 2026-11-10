@@ -150,7 +150,7 @@ En cualquier zona que no sea UTC, el hábito creado a las 18:00 del lunes aparec
 > [!important] Regla para cualquier código nuevo
 > **Nunca** construyas ni interpretes epoch millis a mano. Usa siempre las extensiones de `core/util/DateConverter.kt`. Son la única fuente de verdad sobre fechas en la app.
 
-Nota de alcance: la conversión se hace con `ZoneId.systemDefault()` **en el momento de la llamada**. Si el usuario cambia de zona horaria, las fechas ya almacenadas siguen apuntando al instante original, que en la nueva zona puede caer en otro día. `ToggleCompletionUseCase` siempre usa `dateProvider.today()` (fecha local *actual*), por lo que no se rompe el flujo normal; el riesgo solo aparece con datos históricos y cambios de zona.
+Nota de alcance: la conversión se hace con `ZoneId.systemDefault()` **en el momento de la llamada**. Si el usuario cambia de zona horaria, las fechas ya almacenadas siguen apuntando al instante original, que en la nueva zona puede caer en otro día. `ToggleCompletionUseCase` usa la fecha que recibe (por defecto `dateProvider.today()`, pero la pantalla principal le pasa el día seleccionado en el calendario), así que marcar un día pasado es una escritura normal sobre `(habitId, date)`. El riesgo solo aparece con datos históricos y cambios de zona.
 
 ### `DateProvider`: la abstracción de "hoy"
 
@@ -161,10 +161,12 @@ class RealDateProvider : DateProvider {
 }
 ```
 
-Existe **para poder inyectar una fecha falsa en tests**, y se usa en `GetTodaysHabitsUseCase` y `ToggleCompletionUseCase`.
+Existe **para poder inyectar una fecha falsa en tests**, y se usa en `GetTodaysHabitsUseCase`, `ToggleCompletionUseCase`, `HomeViewModel` y `HabitDetailViewModel`.
 
-> [!warning] La abstracción solo se respeta a medias
-> `DateProvider` se usa en la capa de dominio, pero **`HomeScreen` y `HabitDetailScreen` llaman a `LocalDate.now()` directamente**, sin pasar por él. Ver BUG-005 en [[Bugs]]: la pantalla principal congela la fecha al componer.
+> [!note] La abstracción ya se respeta en toda la app
+> `HomeViewModel` y `HabitDetailViewModel` resuelven "hoy" con `DateProvider` y exponen
+> `today` como `StateFlow`; las pantallas ya no llaman a `LocalDate.now()`. Era la causa de
+> BUG-005 (fecha congelada al cruzar medianoche), corregido.
 
 ### `HabitDao`
 
@@ -176,7 +178,7 @@ Existe **para poder inyectar una fecha falsa en tests**, y se usa en `GetTodaysH
 | `update(habit)` | `suspend` | `@Update` | ✅ `UpdateHabitUseCase`, `ArchiveHabitUseCase` |
 | `delete(habitId)` | `suspend` | `DELETE WHERE id = :habitId` | ⚠️ Solo vía repositorio, **sin UI** |
 | `getById(habitId)` | `suspend` | `SELECT WHERE id = :habitId` | ✅ `HabitFormScreen` |
-| `getActiveHabits()` | `Flow` | `WHERE status = 'ACTIVE' ORDER BY createdAt DESC` | ✅ `HomeScreen` |
+| `getActiveHabits()` | `Flow` | `WHERE status = 'ACTIVE' ORDER BY createdAt DESC` | ✅ `HomeViewModel` |
 | `getActiveHabitsList()` | `suspend` | Misma consulta, sin Flow | ❌ **Código muerto** |
 | `getAllHabits()` | `Flow` | `ORDER BY createdAt DESC` | ❌ **Código muerto** |
 | `getAllHabitsList()` | `suspend` | Misma consulta, sin Flow | ❌ **Código muerto** |
@@ -198,7 +200,7 @@ Detalles relevantes:
 | `delete(habitId, date)` | `suspend` | `DELETE WHERE habitId AND date` | ⚠️ Solo vía repositorio, **sin UI** |
 | `getForHabit(habitId)` | `Flow` | `WHERE habitId ORDER BY date DESC` | ✅ `HabitDetailScreen` |
 | `getForHabitList(habitId)` | `suspend` | Misma, sin Flow | ❌ **Código muerto** |
-| `getForDate(date)` | `Flow` | `WHERE date ORDER BY habitId` | ✅ `HomeScreen` |
+| `getForDate(date)` | `Flow` | `WHERE date ORDER BY habitId` | ✅ `GetCompletionsForDateUseCase` → `HomeViewModel` |
 | `getForHabitAndDate(...)` | `suspend` | `SELECT WHERE habitId AND date` | ✅ `ToggleCompletionUseCase` |
 
 > [!note] `upsert` con `REPLACE` es lo correcto aquí

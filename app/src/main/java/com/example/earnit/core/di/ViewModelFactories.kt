@@ -1,8 +1,10 @@
 package com.example.earnit.core.di
 
 import androidx.lifecycle.ViewModelProvider
+import com.example.earnit.core.util.DateProvider
 import com.example.earnit.domain.usecase.ArchiveHabitUseCase
 import com.example.earnit.domain.usecase.CreateHabitUseCase
+import com.example.earnit.domain.usecase.GetCompletionsForDateUseCase
 import com.example.earnit.domain.usecase.GetHabitHistoryUseCase
 import com.example.earnit.domain.usecase.GetTodaysHabitsUseCase
 import com.example.earnit.domain.usecase.ToggleCompletionUseCase
@@ -16,14 +18,20 @@ import com.example.earnit.feature.home.HomeViewModel
  * its dependencies straight from [AppContainer].
  */
 class HomeViewModelFactory(
-    private val getTodaysHabitsUseCase: GetTodaysHabitsUseCase
+    private val getTodaysHabitsUseCase: GetTodaysHabitsUseCase,
+    private val getCompletionsForDateUseCase: GetCompletionsForDateUseCase,
+    private val dateProvider: DateProvider
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             "Unknown ViewModel class: ${modelClass.name}"
         }
-        return HomeViewModel(getTodaysHabitsUseCase) as T
+        return HomeViewModel(
+            getTodaysHabitsUseCase,
+            getCompletionsForDateUseCase,
+            dateProvider
+        ) as T
     }
 }
 
@@ -43,7 +51,8 @@ class HabitFormViewModelFactory(
 class HabitDetailViewModelFactory(
     private val toggleCompletionUseCase: ToggleCompletionUseCase,
     private val getHabitHistoryUseCase: GetHabitHistoryUseCase,
-    private val archiveHabitUseCase: ArchiveHabitUseCase
+    private val archiveHabitUseCase: ArchiveHabitUseCase,
+    private val dateProvider: DateProvider
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -53,7 +62,8 @@ class HabitDetailViewModelFactory(
         return HabitDetailViewModel(
             toggleCompletionUseCase,
             getHabitHistoryUseCase,
-            archiveHabitUseCase
+            archiveHabitUseCase,
+            dateProvider
         ) as T
     }
 }

@@ -8,7 +8,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.earnit.domain.repository.HabitCompletionRepository
 import com.example.earnit.domain.repository.HabitRepository
 import com.example.earnit.domain.usecase.ToggleCompletionUseCase
 import com.example.earnit.feature.habit.HabitDetailScreen
@@ -26,7 +25,6 @@ fun AppNavHost(
     habitFormViewModel: HabitFormViewModel,
     habitDetailViewModel: HabitDetailViewModel,
     habitRepository: HabitRepository,
-    completionRepository: HabitCompletionRepository,
     toggleCompletionUseCase: ToggleCompletionUseCase
 ) {
     val navController = rememberNavController()
@@ -36,7 +34,12 @@ fun AppNavHost(
         composable("home") {
             HomeScreen(
                 habitsFlow = homeViewModel.habits,
-                completionRepository = completionRepository,
+                completionsFlow = homeViewModel.completions,
+                selectedDateFlow = homeViewModel.selectedDate,
+                todayFlow = homeViewModel.today,
+                onDateSelected = homeViewModel::selectDate,
+                onGoToToday = homeViewModel::goToToday,
+                onRefreshToday = homeViewModel::refreshToday,
                 onAddHabit = {
                     habitFormViewModel.clear()
                     navController.navigate("add_habit")
@@ -82,7 +85,7 @@ fun AppNavHost(
                     scope.launch { habitDetailViewModel.archive() }
                     navController.popBackStack()
                 },
-                onToggleCompletion = { date ->
+                onToggleCompletion = {
                     scope.launch { habitDetailViewModel.toggleCompletion() }
                 }
             )

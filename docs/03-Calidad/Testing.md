@@ -10,12 +10,12 @@ Resumen verificado contra los artefactos de la última ejecución (`app/build/te
 
 | Tipo | Archivos | Tests | Resultado |
 |---|---|---|---|
-| **Unitario (JVM)** | 2 | **4** | ✅ 4 pasan |
+| **Unitario (JVM)** | 5 | **20** | ✅ 20 pasan |
 | **Instrumentado (dispositivo)** | 3 | **6** | ✅ 6 pasan en emulador |
 | **Integración** | 0 | 0 | — |
 | **UI (Compose)** | 2 de los 3 instrumentados | 5 | ✅ Pasan |
 
-**Cobertura efectiva: baja, pero ya no nula.** El único test unitario original sigue verificando que `2 + 2 == 4`. Las dependencias de testing **sin usar** son ahora cuatro de cinco: `mockito-core`, `turbine`, `robolectric` y `room-testing`. `kotlinx-coroutines-test` **ya se usa**, en `HabitFormViewModelTest`.
+**Cobertura efectiva: baja, pero ya no nula.** El único test unitario original sigue verificando que `2 + 2 == 4`. Las dependencias de testing **sin usar** son ahora cuatro de cinco: `mockito-core`, `turbine`, `robolectric` y `room-testing`. `kotlinx-coroutines-test` **ya se usa**, en `HabitFormViewModelTest` y `HomeViewModelTest`.
 
 ## Información encontrada
 
@@ -96,6 +96,35 @@ Usa fakes escritos a mano en el propio archivo (`FakeHabitCompletionRepository`,
 
 Usa `Dispatchers.setMain()` porque `viewModelScope` necesita un dispatcher principal, y un `RecordingHabitRepository` que guarda lo que se le pasa a `insert` y a `update`.
 
+#### `HomeViewModelTest` — estado por fecha
+
+`app/src/test/java/com/example/earnit/feature/home/HomeViewModelTest.kt`. Tres tests con
+fakes en memoria (`MutableDateProvider`, `FakeHabitRepository`, `FakeCompletionRepository`):
+
+1. **`selectingPastDate_usesThatDaysCompletionsAndHidesHabitsCreatedLater`** — al seleccionar
+   un día pasado, las completiones son las de ese día y los hábitos creados después no
+   aparecen.
+2. **`selectingFutureDate_isIgnored`** — `selectDate(today + 1)` no cambia la selección.
+3. **`refreshToday_advancesTheSelectionOnlyIfItWasShowingToday`** — es la regresión de
+   BUG-005: `refreshToday()` avanza la selección si el usuario veía "hoy" y la respeta si
+   estaba consultando un día pasado.
+
+Como los flujos usan `stateIn(viewModelScope, WhileSubscribed(5_000))`, cada test lanza un
+colector en `backgroundScope` y llama a `advanceUntilIdle()` antes de leer el `StateFlow`.
+
+#### `CalendarDatesTest` — cálculo de semanas y meses
+
+`app/src/test/java/com/example/earnit/core/util/CalendarDatesTest.kt`. Cuatro tests sobre
+`CalendarDates.kt`, que es Kotlin puro precisamente para poder verificarse sin dispositivo:
+
+1. `weekDates_startOnTheConfiguredFirstDay` — la semana empieza en lunes o domingo según el
+   primer día configurado.
+2. `monthCells_padsTheRowsWithNulls` — febrero de 2026 con lunes como primer día deja seis
+   huecos al principio.
+3. `monthCells_handlesAMonthStartingOnTheFirstWeekDay` — junio de 2026 empieza en lunes y
+   deja cinco huecos al final.
+4. `weekDayLabels_followTheConfiguredFirstDay` — las etiquetas siguen el mismo orden.
+
 ### Comandos
 
 ```bash
@@ -138,14 +167,14 @@ Este listado es el más útil del documento. **No hay ninguna prueba** de:
 
 | Área | Sin cubrir |
 |---|---|
-| **Casos de uso** | `CreateHabitUseCase`, `UpdateHabitUseCase`, `ArchiveHabitUseCase`, `ToggleCompletionUseCase`, `GetTodaysHabitsUseCase`, `GetHabitHistoryUseCase` — **0 tests** |
+| **Casos de uso** | `CreateHabitUseCase`, `UpdateHabitUseCase`, `ArchiveHabitUseCase`, `ToggleCompletionUseCase`, `GetTodaysHabitsUseCase`, `GetHabitHistoryUseCase`, `GetCompletionsForDateUseCase` — **0 tests directos** (algunos se ejercitan desde `HomeViewModelTest`) |
 | **`DateConverter`** | `toEpochMillis` / `toLocalDate` — **0 tests**. Es la pieza que ya tuvo un bug real de zona horaria |
 | **`RealDateProvider` / `DateProvider`** | **0 tests** |
 | **Repositorios** | `HabitRepositoryImpl`, `HabitCompletionRepositoryImpl` — **0 tests** |
 | **DAO / Room** | `HabitDao`, `HabitCompletionDao` — **0 tests**. `room-testing` está declarada y sin usar |
 | **`Converters`** | **0 tests**. `Frequency.valueOf` lanza excepción ante un valor desconocido y eso no está verificado |
 | **`AppDatabase`** | **0 tests**. Nadie verifica que la migración destructiva funciona |
-| **`HomeViewModel`** | **0 tests** |
+| **`HomeViewModel`** | **3 tests**. Selección de días pasados/futuros, filtro por `createdAt` y refresco de "hoy" (BUG-005) |
 | **`HabitFormViewModel`** | **3 tests**. Cubren la preservación de `createdAt`/`status` al editar (BUG-002) y el estado derivado `isValid` |
 | **`HabitDetailViewModel`** | **1 test indirecto**. `habitIsLoadedFromTheRepositoryById` lo monta sin `initialize()`; el `Job` del colector (BUG-003) no tiene test propio |
 | **`HomeScreen`** | **0 tests** |
@@ -178,8 +207,8 @@ Lo que fija:
 
 | Dependencia | Versión | ¿Se usa? | Nota |
 |---|---|---|---|
-| `junit` | 4.13.2 | ✅ Sí | Los 4 archivos de test |
-| `kotlinx-coroutines-test` | 1.8.1 | ✅ **Sí** (desde 2026-10-10) | `HabitFormViewModelTest` |
+| `junit` | 4.13.2 | ✅ Sí | Los 5 archivos de test unitario |
+| `kotlinx-coroutines-test` | 1.8.1 | ✅ **Sí** (desde 2026-10-10) | `HabitFormViewModelTest`, `HomeViewModelTest` |
 | `mockito-core` | 5.18.0 | ❌ **No** | Solo se usa un `Fake` escrito a mano |
 | `turbine` | 1.0.0 | ❌ **No** | La herramienta ideal para los `Flow` de los repositorios |
 | `robolectric` | 4.11 | ❌ **No** | Permite tests de Room sin dispositivo |

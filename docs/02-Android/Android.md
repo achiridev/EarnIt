@@ -120,7 +120,8 @@ Esto significa que **la base de datos Room de hábitos se incluye en la copia de
 
 ### Versión y firma
 
-- `versionCode = 1`, `versionName = "1.0"`.
+- `versionCode = 2`, `versionName = "2.0.0"`.
+- **Versionado SemVer** (`MAJOR.MINOR.PATCH`): `PATCH` para correcciones, `MINOR` para funcionalidad nueva compatible y `MAJOR` para cambios incompatibles. `versionCode` se incrementa en **cada** cambio.
 - **No existe bloque `signingConfig`** en `app/build.gradle.kts`. Ver [[Build]] y BUG-007 en [[Bugs]].
 - **No existe `app/proguard-rules.pro`**, aunque `app/build.gradle.kts:24` lo referencia. Ver BUG-008 en [[Bugs]].
 - **No hay `buildTypes` adicionales** (ni `debug` explícito, ni *flavors*, ni `buildConfigField`). Solo `debug` (implícito) y `release`.
