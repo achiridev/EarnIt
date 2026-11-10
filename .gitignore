@@ -13,3 +13,19 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Estado de Kotlin/AGP 9 (se crea al compilar)
+.kotlin/
+
+# Artefactos de build exportados a mano
+*.apk
+*.aab
+*.hprof
+
+# Material de firma: jamás al repo
+*.jks
+*.keystore
+keystore.properties
+
+# Salida de "Generate Signed Bundle" de Android Studio
+/app/release/
